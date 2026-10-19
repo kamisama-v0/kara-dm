@@ -48,7 +48,7 @@ jobs:
             mingw-w64-ucrt-x86_64-libadwaita
             mingw-w64-ucrt-x86_64-librsvg
             mingw-w64-ucrt-x86_64-adwaita-icon-theme
-            mingw-w64-ucrt-x86_64-aria2
+            unzip
       - name: Build
         run: cargo build --release --locked
       - name: yt-dlp.exe (rilis resmi, checksum diverifikasi)
@@ -57,12 +57,18 @@ jobs:
           v=2026.08.19
           curl -fsSL -o dist/windows/yt-dlp.exe "https://github.com/yt-dlp/yt-dlp/releases/download/$v/yt-dlp.exe"
           echo "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a  dist/windows/yt-dlp.exe" | sha256sum -c
+      - name: aria2 resmi untuk Windows (checksum diverifikasi)
+        run: |
+          curl -fsSL -o aria2.zip https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip
+          echo "67d015301eef0b612191212d564c5bb0a14b5b9c4796b76454276a4d28d9b288  aria2.zip" | sha256sum -c
+          unzip -q aria2.zip && mkdir -p dist/windows && mv aria2-1.37.0-win-64bit-build1 dist/windows/aria2
       - name: Bundle
         run: bash packaging/windows/bundle.sh
       - name: Self-test bundel (tanpa MSYS2 di PATH)
         shell: pwsh
         run: |
           $env:PATH = "C:\Windows\System32;C:\Windows"
+          $env:KARA_SELFTEST_URL = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0.tar.xz"
           $p = Start-Process -FilePath dist\windows\kara-dm\kara-dm.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow -RedirectStandardOutput selftest.txt
           Get-Content selftest.txt
           if ($p.ExitCode -ne 0) { throw "selftest gagal: $($p.ExitCode)" }

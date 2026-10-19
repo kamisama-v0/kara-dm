@@ -1017,6 +1017,34 @@ impl App {
     }
 }
 
+fn selftest_download(a: &aria2::Aria2, url: &str, dir: &Path) -> bool {
+    let opts = json!({"dir": dir.to_string_lossy(), "split": "4", "max-connection-per-server": "4"});
+    let gid = match a.call("aria2.addUri", vec![json!([url]), opts]) {
+        Ok(Value::String(g)) => g,
+        other => {
+            println!("unduhan uji: GAGAL menambah ({other:?})");
+            return false;
+        }
+    };
+    for _ in 0..120 {
+        std::thread::sleep(Duration::from_millis(500));
+        let Ok(s) = a.call("aria2.tellStatus", vec![json!(gid)]) else { continue };
+        match s.get("status").and_then(Value::as_str) {
+            Some("complete") => {
+                println!("unduhan uji: OK {} byte", num(&s, "completedLength"));
+                return true;
+            }
+            Some("error") => {
+                println!("unduhan uji: GAGAL {}", s.get("errorMessage").and_then(Value::as_str).unwrap_or("?"));
+                return false;
+            }
+            _ => {}
+        }
+    }
+    println!("unduhan uji: GAGAL waktu habis");
+    false
+}
+
 /// Nyalakan aria2 dan server WebSocket tanpa GTK, laporkan, lalu keluar. Dipakai CI dan untuk diagnosis.
 fn selftest() -> glib::ExitCode {
     let dir = std::env::temp_dir().join(format!("kara-dm-selftest-{}", std::process::id()));
@@ -1035,7 +1063,7 @@ fn selftest() -> glib::ExitCode {
         speed_limit_kib: 0,
         user_agent: &ua,
     });
-    let ok = match &aria {
+    let mut ok = match &aria {
         Ok(a) => match a.call("aria2.getVersion", vec![]) {
             Ok(v) => {
                 println!("aria2: OK {}", v.get("version").and_then(Value::as_str).unwrap_or("?"));
@@ -1051,6 +1079,10 @@ fn selftest() -> glib::ExitCode {
             false
         }
     };
+    // Uji unduhan sungguhan (HTTPS/sertifikat) bila KARA_SELFTEST_URL diset, mis. di CI.
+    if let (Ok(a), Ok(url)) = (&aria, std::env::var("KARA_SELFTEST_URL")) {
+        ok &= selftest_download(a, &url, &dir);
+    }
     let (tx, _rx) = async_channel::unbounded();
     let shared = Arc::new(ws::Shared { connections: AtomicUsize::new(0), media_panel: AtomicBool::new(true) });
     match ws::start(tx, shared) {

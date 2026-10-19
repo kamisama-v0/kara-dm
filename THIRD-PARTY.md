@@ -8,7 +8,7 @@ not to Kara Download Manager.
 
 | Component | Used for | License | Source |
 | --- | --- | --- | --- |
-| [aria2](https://aria2.github.io/) 1.37.0 | download engine (run as a separate process, JSON-RPC on 127.0.0.1) | GPL-2.0-or-later with OpenSSL exception | <https://github.com/aria2/aria2/releases/tag/release-1.37.0> |
+| [aria2](https://aria2.github.io/) 1.37.0 | download engine (run as a separate process, JSON-RPC on 127.0.0.1). Windows: the official `aria2-1.37.0-win-64bit-build1` binary, its license files are in `licenses/aria2/` | GPL-2.0-or-later with OpenSSL exception | <https://github.com/aria2/aria2/releases/tag/release-1.37.0> |
 | [yt-dlp](https://github.com/yt-dlp/yt-dlp) 2026.08.19 | HLS/DASH streams and "this page's video" | Unlicense | <https://github.com/yt-dlp/yt-dlp/releases/tag/2026.08.19> |
 | [FFmpeg](https://ffmpeg.org/) 8.1.3 (Flatpak only) | merging video + audio streams | LGPL-2.1-or-later (built without `--enable-gpl`) | <https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz> |
 

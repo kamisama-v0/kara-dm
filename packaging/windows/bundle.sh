@@ -10,7 +10,14 @@ rm -rf "$out"
 mkdir -p "$out"
 
 cp target/release/kara-dm.exe "$out/"
-cp "$prefix/bin/aria2c.exe" "$out/"
+# aria2: build resmi Windows (TLS bawaan Windows, statis) kalau sudah diunduh workflow; selain itu dari MSYS2.
+if [[ -f dist/windows/aria2/aria2c.exe ]]; then
+  cp dist/windows/aria2/aria2c.exe "$out/"
+  mkdir -p "$out/licenses/aria2"
+  cp dist/windows/aria2/{COPYING,LICENSE.OpenSSL,AUTHORS} "$out/licenses/aria2/"
+else
+  cp "$prefix/bin/aria2c.exe" "$out/"
+fi
 [[ -f dist/windows/yt-dlp.exe ]] && cp dist/windows/yt-dlp.exe "$out/"
 
 # gdk-pixbuf (PNG/SVG untuk ikon)
