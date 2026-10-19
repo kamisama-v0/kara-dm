@@ -32,6 +32,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 /* Font di body, bukan :root: Chromium memberi popup ekstensi body { font-size: 75% } bawaan. */
 body {
   margin: 0;
@@ -89,6 +90,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 .switch input:checked + span { background: var(--on); }
 .switch input:checked + span::after { transform: translateX(14px); }
+button.row.action {
+  width: 100%; font: inherit; color: inherit; text-align: left; border: 0; cursor: pointer;
+}
+button.row.action:hover { background: var(--glass-hover); }
+select {
+  font: inherit; color: inherit; border: 0; border-radius: 8px; padding: 5px 8px; cursor: pointer;
+  background: rgba(127, 127, 127, 0.16);
+}
+select:focus-visible { outline: 2px solid var(--on); outline-offset: 1px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); flex: none; }
 .dot.on { background: var(--on); box-shadow: 0 0 0 3px rgba(52, 168, 101, 0.2); }
 .dot.off { background: var(--danger); }

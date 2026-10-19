@@ -17,8 +17,15 @@ memakai kode ekstensi NDM.
   tampil di badge ikon.
 - **Tombol kaca "Unduh video"** di atas pemutar (Shadow DOM tertutup, `backdrop-filter`), daftar media + "Video
   halaman ini (yt-dlp)" untuk YouTube/Vimeo/X/dll.
-- **Popup**: status koneksi, tangkap on/off, matikan per situs, media tab ini. **Opsi**: situs dikecualikan, jenis
-  berkas, ukuran minimum, tombol video, notifikasi.
+- **Unduh semua tautan** (`links.html`, dari popup atau klik kanan halaman): content script bingkai utama
+  mengumpulkan `a[href]` + sumber gambar/video/audio, `prepareLinks` membuang duplikat, `#fragmen`, tautan ke
+  halaman itu sendiri dan skema selain http/https/ftp, lalu mengelompokkan per jenis berkas. Yang dicentang dikirim
+  sebagai unduhan biasa dengan kunci `11:1` (aplikasi tidak membuka jendela progres per berkas).
+- **Kualitas video** (`videoQuality`): Terbaik, 2160p…360p, atau Audio saja, untuk item yt-dlp (video halaman,
+  HLS, DASH); dikirim sebagai kunci `10`. Berkas video langsung (MP4/WebM) tidak terpengaruh. Aplikasi < 0.3
+  mengabaikan kunci ini (selalu terbaik).
+- **Popup**: status koneksi, tangkap on/off, matikan per situs, unduh semua tautan, kualitas video, media tab ini.
+  **Opsi**: situs dikecualikan, jenis berkas, ukuran minimum, tombol video, kualitas video, notifikasi.
 
 ## Struktur
 
@@ -26,7 +33,8 @@ memakai kode ekstensi NDM.
 | --- | --- |
 | `src/common.js` | logika murni (pesan protokol, filter, klasifikasi media) — diuji `node --test` |
 | `src/background.js` | event page (Firefox) / service worker (Chromium) |
-| `src/content.js` | tombol video di halaman |
+| `src/content.js` | tombol video di halaman + pengumpul tautan untuk unduh massal |
+| `src/links.*` | halaman "Unduh semua tautan" |
 | `src/popup.*`, `src/options.*`, `src/glass.css` | UI kaca ala macOS Tahoe |
 | `manifest.base.json` + `build.mjs` | manifest bersama; build menambah bagian khusus tiap browser ke `dist/` |
 

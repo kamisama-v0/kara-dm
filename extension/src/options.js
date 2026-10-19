@@ -21,6 +21,8 @@ api.storage.local.get(K.DEFAULTS).then((s) => {
   $("ignoredExtensions").value = s.ignoredExtensions.join(", ");
   $("ignoredExtensions").onchange = (e) =>
     api.storage.local.set({ ignoredExtensions: list(e.target.value, /[,\s]+/).map((x) => x.replace(/^\./, "").toLowerCase()) }).then(saved);
+  for (const [v, label] of K.QUALITIES) $("videoQuality").append(new Option(label, v, false, v === s.videoQuality));
+  $("videoQuality").onchange = (e) => api.storage.local.set({ videoQuality: e.target.value }).then(saved);
   $("minSizeMB").value = s.minSizeMB;
   $("minSizeMB").onchange = (e) => api.storage.local.set({ minSizeMB: Math.max(0, Number(e.target.value) || 0) }).then(saved);
 });

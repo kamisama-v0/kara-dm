@@ -176,6 +176,9 @@ pub struct Item {
     pub body: Option<String>,
     #[serde(skip)]
     pub content_type: Option<String>,
+    /// Kualitas yt-dlp pilihan ekstensi (kosong = terbaik); disimpan agar "coba lagi" memakai pilihan yang sama.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub quality: String,
 }
 
 pub fn now() -> u64 {

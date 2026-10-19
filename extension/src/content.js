@@ -7,12 +7,29 @@
   const K = globalThis.KDM;
 
   let enabled = true;
-  api.storage.local.get({ videoButton: true }).then((s) => (enabled = s.videoButton));
+  let quality = K.DEFAULTS.videoQuality;
+  api.storage.local.get({ videoButton: true, videoQuality: quality }).then((s) => {
+    enabled = s.videoButton;
+    quality = s.videoQuality;
+  });
   api.storage.onChanged.addListener((c, area) => {
-    if (area === "local" && c.videoButton) {
+    if (area !== "local") return;
+    if (c.videoQuality) quality = c.videoQuality.newValue;
+    if (c.videoButton) {
       enabled = c.videoButton.newValue;
       if (!enabled) hide(true);
     }
+  });
+
+  // Tautan halaman untuk "Unduh semua tautan" (diminta background, hanya bingkai utama).
+  api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type !== "kara-links") return;
+    const out = [];
+    for (const a of document.querySelectorAll("a[href], area[href]")) out.push({ url: a.href, text: a.textContent || a.title || "" });
+    for (const m of document.querySelectorAll("img[src], video[src], audio[src], source[src]")) {
+      out.push({ url: m.currentSrc || m.src, text: m.alt || m.title || "" });
+    }
+    sendResponse(out.slice(0, 5000));
   });
 
   const CSS = `
@@ -40,6 +57,9 @@
     .state { font-size: 11.5px; color: rgba(255,255,255,.8); }
     .ok { color: #7ee2a4; } .err { color: #ff9a90; }
     .note { padding: 9px 10px; font-weight: 400; color: rgba(255,255,255,.72); line-height: 1.4; }
+    .quality { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; font-weight: 400; color: rgba(255,255,255,.72); }
+    .quality select { flex: 1; font: inherit; color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+      border-radius: 10px; padding: 5px 8px; color-scheme: dark; }
   `;
 
   let host, wrap, menu, video, hideTimer, raf;
@@ -174,27 +194,45 @@
       menu.replaceChildren(note("Ekstensi tidak menjawab: " + err.message));
       return;
     }
-    menu.replaceChildren(
-      ...items.map((it) => {
-        const name = it.page ? it.label : decodeName(it.url);
-        const sub = it.page ? "Kualitas terbaik, video + audio" : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
-        return row(name, sub, async (st) => {
-          st.textContent = "…";
-          try {
-            const r = await api.runtime.sendMessage({ type: "download", item: it });
-            if (r && r.error) throw new Error(r.error);
-            st.className = "state ok";
-            st.textContent = "Dikirim";
-            setTimeout(() => hide(true), 900);
-          } catch (err) {
-            st.className = "state err";
-            st.textContent = /tidak (berjalan|menjawab)/.test(err.message) ? "Kara DM mati" : "Gagal";
-            st.title = err.message;
-          }
-        });
-      }),
-    );
+    // Baris yt-dlp (halaman / HLS / DASH) menampilkan kualitas pilihan; berkas langsung tidak punya pilihan.
+    const streams = [];
+    const streamSub = (it) => (it.page ? "Video + audio · " : it.label + " · ") + K.qualityLabel(quality);
+    const rows = items.map((it) => {
+      const name = it.page ? it.label : decodeName(it.url);
+      const sub = it.kind === "hls" ? streamSub(it) : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
+      const el = row(name, sub, async (st) => {
+        st.textContent = "…";
+        try {
+          const r = await api.runtime.sendMessage({ type: "download", item: it });
+          if (r && r.error) throw new Error(r.error);
+          st.className = "state ok";
+          st.textContent = "Dikirim";
+          setTimeout(() => hide(true), 900);
+        } catch (err) {
+          st.className = "state err";
+          st.textContent = /tidak (berjalan|menjawab)/.test(err.message) ? "Kara DM mati" : "Gagal";
+          st.title = err.message;
+        }
+      });
+      if (it.kind === "hls") streams.push([it, el.querySelector(".sub")]);
+      return el;
+    });
+    menu.replaceChildren(...(streams.length ? [qualityPicker(() => streams.forEach(([it, s]) => (s.textContent = streamSub(it))))] : []), ...rows);
     if (!items.length) menu.append(note("Belum ada media terdeteksi. Putar videonya sebentar lalu buka lagi."));
+  }
+
+  function qualityPicker(onChange) {
+    const wrap = document.createElement("label");
+    wrap.className = "quality";
+    const sel = document.createElement("select");
+    for (const [v, label] of K.QUALITIES) sel.append(new Option(label, v, false, v === quality));
+    sel.addEventListener("change", () => {
+      quality = sel.value;
+      api.storage.local.set({ videoQuality: quality });
+      onChange();
+    });
+    wrap.append("Kualitas", sel);
+    return wrap;
   }
 
   function note(text) {

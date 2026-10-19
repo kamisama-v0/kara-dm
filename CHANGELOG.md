@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Browser extension 0.1.4: "Download all links" page (from the popup or the page context menu) that lists the
+  page's links grouped by file type (video, audio, images, documents, archives, programs) with search and
+  checkboxes, and sends the chosen files to the app in one go.
+- Video quality choice (best, 2160p down to 360p, or audio only) for page videos, HLS and DASH, in the popup, the
+  video button menu and the options; the app passes it to yt-dlp.
+- The app accepts two extension-only protocol keys: `10` (yt-dlp quality) and `11` (part of a batch, so no
+  progress window or notification per file). Neat Download Manager ignores them.
+
 ### Changed
 - Browser extension 0.1.3: first listed (public) version on addons.mozilla.org; same code as 0.1.2.
 - Release workflow submits the Firefox extension to addons.mozilla.org (listed) when the AMO API key secrets are set.

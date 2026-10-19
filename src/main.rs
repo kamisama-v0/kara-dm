@@ -345,6 +345,7 @@ impl App {
             headers: req.headers.clone(),
             body: req.body.clone(),
             content_type: req.content_type.clone(),
+            quality: req.quality.clone(),
             ..Default::default()
         };
         let media_stem = if title.is_empty() || title == "unduhan" { "video".to_string() } else { title.clone() };
@@ -357,7 +358,7 @@ impl App {
             it.fixed_name = true;
         } else if req.is_hls() {
             it.kind = Kind::Ytdlp;
-            it.name = unique_name(&dir, &media_stem, "mp4");
+            it.name = unique_name(&dir, &media_stem, if req.quality == "audio" { "m4a" } else { "mp4" });
             it.fixed_name = true;
         } else if req.kind == "media" {
             let ext = protocol::ext_from_label(&req.label)
@@ -382,7 +383,7 @@ impl App {
         }
         self.dirty.set(true);
         self.refresh_summary();
-        if from_browser {
+        if from_browser && !req.batch {
             if self.settings.borrow().show_progress_window {
                 self.show_progress(&id);
             } else if self.settings.borrow().notify {
@@ -455,6 +456,7 @@ impl App {
             "--print", "after_move:filepath", "--user-agent",
         ]);
         cmd.arg(&self.ua);
+        cmd.args(protocol::ytdlp_format_args(&it.quality));
         let mut temp = vec![];
         for (k, v) in &it.headers {
             if k.eq_ignore_ascii_case("cookie") {

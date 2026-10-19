@@ -38,6 +38,18 @@ async function main() {
   } else {
     $("siteRow").hidden = true;
   }
+  const streamSub = (it) => (it.page ? "Video + audio · " : it.label + " · ") + K.qualityLabel(settings.videoQuality);
+  for (const [v, label] of K.QUALITIES) $("quality").append(new Option(label, v, false, v === settings.videoQuality));
+  $("quality").onchange = (e) => {
+    settings.videoQuality = e.target.value;
+    api.storage.local.set({ videoQuality: e.target.value });
+    for (const s of document.querySelectorAll("[data-stream]")) s.textContent = streamSub(JSON.parse(s.dataset.stream));
+  };
+  if (host) {
+    $("links").onclick = () => ask({ type: "openLinks", tabId: tab.id }).then(() => window.close());
+  } else {
+    $("links").hidden = true;
+  }
   $("options").onclick = () => api.runtime.openOptionsPage();
   $("help").onclick = () => api.tabs.create({ url: api.runtime.getURL("options.html#tentang") });
 
@@ -65,10 +77,12 @@ async function main() {
     row.className = "row";
     row.tabIndex = 0;
     const name = it.page ? it.label : it.url.split("?")[0].split("/").pop() || it.label;
-    const sub = it.page ? "kualitas terbaik, video + audio" : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
+    const sub = it.kind === "hls" ? streamSub(it) : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
     const grow = el("span", "grow");
     const title = el("div", "ellipsis");
-    grow.append(title, el("div", "sub ellipsis", sub));
+    const subEl = el("div", "sub ellipsis", sub);
+    if (it.kind === "hls") subEl.dataset.stream = JSON.stringify({ page: !!it.page, label: it.label });
+    grow.append(title, subEl);
     const state = el("span", "state");
     state.append(K.svgIcon(document, "download"));
     row.append(grow, state);

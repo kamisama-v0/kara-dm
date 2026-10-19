@@ -74,3 +74,39 @@ test("cookieHeader dan encodeRequestBody", () => {
   assert.ok(K.isVideoSite("https://www.youtube.com/watch?v=x"));
   assert.ok(!K.isVideoSite("https://example.com/"));
 });
+
+test("buildMessage membawa kualitas dan penanda massal (kunci khusus Kara DM)", () => {
+  const msg = K.buildMessage({ url: "https://youtu.be/x", kind: "hls", quality: "720", batch: true });
+  assert.ok(msg.includes("\r\n10:720\r\n11:1\r\n"));
+  const best = K.buildMessage({ url: "https://youtu.be/x", kind: "hls", quality: "best" });
+  assert.ok(!best.includes("10:") && !best.includes("11:"));
+  assert.ok(!K.buildMessage({ url: "https://youtu.be/x", quality: "--exec x" }).includes("10:"));
+  assert.equal(K.qualityLabel("audio"), "Audio saja");
+  assert.equal(K.qualityLabel("aneh"), "Terbaik");
+});
+
+test("prepareLinks merapikan dan mengelompokkan tautan halaman", () => {
+  const page = "https://site.org/rilis#atas";
+  const out = K.prepareLinks(
+    [
+      { url: "https://site.org/rilis#bawah", text: "lompat" },
+      { url: "https://cdn.site.org/app%20v2.zip?x=1#h", text: " Unduh\n zip " },
+      { url: "https://cdn.site.org/app%20v2.zip?x=1", text: "duplikat" },
+      { url: "https://cdn.site.org/Film.MKV", text: "" },
+      { url: "javascript:void(0)", text: "x" },
+      { url: "mailto:a@b.c", text: "x" },
+      { url: "https://site.org/tentang", text: "Tentang" },
+    ],
+    page,
+  );
+  assert.deepEqual(
+    out.map((l) => [l.name, l.ext, l.cat, l.text]),
+    [
+      ["app v2.zip", "zip", "archive", "Unduh zip"],
+      ["Film.MKV", "mkv", "video", ""],
+      ["tentang", "", "other", "Tentang"],
+    ],
+  );
+  assert.equal(K.linkCategory("https://x.org/a.PDF"), "document");
+  assert.equal(K.linkCategory("https://x.org/setup.exe"), "program");
+});

@@ -165,11 +165,17 @@ api.runtime.onInstalled.addListener(async () => {
   api.contextMenus.create({ id: "kdm-link", title: "Unduh dengan Kara DM", contexts: ["link"] });
   api.contextMenus.create({ id: "kdm-media", title: "Unduh media ini dengan Kara DM", contexts: ["video", "audio", "image"] });
   api.contextMenus.create({ id: "kdm-page", title: "Unduh video halaman ini (yt-dlp)", contexts: ["page", "video"] });
+  api.contextMenus.create({ id: "kdm-links", title: "Unduh semua tautan dengan Kara DM…", contexts: ["page"] });
 });
 
 api.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "kdm-links") return void openLinksPage(tab.id);
   sendFromMenu(info, tab).catch((e) => notify("Gagal mengirim ke Kara DM", e.message));
 });
+
+function openLinksPage(tabId) {
+  api.tabs.create({ url: api.runtime.getURL("links.html?tab=" + tabId) });
+}
 
 async function sendFromMenu(info, tab) {
   let url = info.menuItemId === "kdm-link" ? info.linkUrl : info.menuItemId === "kdm-media" ? info.srcUrl : tab.url;
@@ -179,7 +185,8 @@ async function sendFromMenu(info, tab) {
     url = tab.url;
     kind = "hls";
   }
-  await send({ url, kind, title: tab.title, page: tab.url, cookies: await cookiesFor(url) });
+  const quality = kind === "hls" ? settings.videoQuality : "";
+  await send({ url, kind, quality, title: tab.title, page: tab.url, cookies: await cookiesFor(url) });
 }
 
 // ---------- media per tab ----------
@@ -261,8 +268,34 @@ async function handleMessage(msg, sender) {
     }
     case "download": {
       const it = msg.item;
-      await send({ url: it.url, kind: it.kind, title: tab?.title, page: tab?.url, cookies: await cookiesFor(it.url), size: it.size, label: it.label });
+      const quality = it.kind === "hls" ? settings.videoQuality : "";
+      await send({ url: it.url, kind: it.kind, quality, title: tab?.title, page: tab?.url, cookies: await cookiesFor(it.url), size: it.size, label: it.label });
       return { ok: true };
+    }
+    case "openLinks":
+      openLinksPage(tab.id);
+      return { ok: true };
+    case "links": {
+      // Hanya bingkai utama: tautan di iframe iklan/pelacak jarang yang dicari.
+      let raw;
+      try {
+        raw = await api.tabs.sendMessage(tab.id, { type: "kara-links" }, { frameId: 0 });
+      } catch {
+        throw new Error("Halaman ini belum bisa dibaca. Muat ulang halamannya lalu coba lagi.");
+      }
+      return { title: tab.title, url: tab.url, links: K.prepareLinks(raw, tab.url) };
+    }
+    case "batch": {
+      const urls = (msg.urls || []).filter((u) => /^(https?|ftp):\/\//i.test(u));
+      await connect(); // gagal cepat kalau aplikasi mati, sebelum mengambil cookie
+      let sent = 0;
+      for (const url of urls) {
+        try {
+          await send({ url, kind: "normal", batch: true, page: tab.url, cookies: await cookiesFor(url) });
+          sent++;
+        } catch {}
+      }
+      return { sent, failed: urls.length - sent };
     }
     default:
       throw new Error("pesan tidak dikenal: " + msg.type);

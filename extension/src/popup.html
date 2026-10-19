@@ -14,6 +14,7 @@
   #media .row:hover { background: var(--glass-hover); }
   .empty { padding: 10px; color: var(--text-2); font-size: 12px; }
   footer { display: flex; justify-content: space-between; padding: 8px 2px 0; }
+  #pageTools { margin-top: 8px; }
   .done { color: var(--on); }
   .fail { color: var(--danger); }
 </style>
@@ -32,6 +33,16 @@
     <label class="row" id="siteRow">
       <span class="grow ellipsis">Matikan di <span id="site">situs ini</span></span>
       <span class="switch"><input type="checkbox" id="siteOff"><span></span></span>
+    </label>
+  </div>
+  <div class="glass" id="pageTools">
+    <button class="row action" id="links">
+      <span class="grow"><div>Unduh semua tautan…</div><div class="sub">Pilih berkas dari halaman ini</div></span>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg>
+    </button>
+    <label class="row">
+      <span class="grow"><div>Kualitas video</div><div class="sub">Untuk video halaman, HLS dan DASH</div></span>
+      <select id="quality"></select>
     </label>
   </div>
   <div class="section">Media di tab ini</div>

@@ -6,6 +6,10 @@
 //! Header HTTP ikut sebagai baris biasa (Origin, Referer, Cookie, Content-Type, x-*). Body POST ditaruh di
 //! akhir setelah penanda `__0NeatPostData9__:`. Aplikasi boleh mengirim `waiting`/`nowaiting` dan
 //! `ShowPanelFox=0|1` (panel tangkap video di halaman).
+//!
+//! Tambahan khusus Kara DM (diabaikan NDM): `10` kualitas yt-dlp (`2160`/`1440`/`1080`/`720`/`480`/`360` = tinggi
+//! maksimum, `audio` = audio saja; tanpa kunci = terbaik), `11:1` bagian dari unduhan massal (tanpa jendela
+//! progres/notifikasi per berkas).
 
 pub const PORT: u16 = 10007;
 pub const SUBPROTOCOL: &str = "neatextension.v1";
@@ -26,6 +30,9 @@ pub struct Request {
     pub headers: Vec<(String, String)>,
     pub content_type: Option<String>,
     pub body: Option<String>,
+    /// Kualitas yt-dlp yang sudah divalidasi (lihat [`quality`]); kosong = terbaik.
+    pub quality: String,
+    pub batch: bool,
 }
 
 impl Request {
@@ -61,6 +68,8 @@ pub fn parse(text: &str) -> Result<Request, String> {
             "7" => r.size = v.parse().unwrap_or(0),
             "8" => r.mime = v.into(),
             "9" => r.label = v.into(),
+            "10" => r.quality = quality(v).unwrap_or_default().into(),
+            "11" => r.batch = v == "1",
             _ => {
                 let l = k.to_ascii_lowercase();
                 if l == "content-type" {
@@ -83,6 +92,20 @@ pub fn parse(text: &str) -> Result<Request, String> {
         r.url2 = None;
     }
     Ok(r)
+}
+
+/// Nilai kualitas yang dikenal; selain itu (termasuk `best`) = terbaik.
+pub fn quality(v: &str) -> Option<&'static str> {
+    ["2160", "1440", "1080", "720", "480", "360", "audio"].into_iter().find(|q| *q == v)
+}
+
+/// Argumen pemilihan format yt-dlp untuk kualitas tersebut.
+pub fn ytdlp_format_args(quality: &str) -> Vec<String> {
+    match quality {
+        "audio" => vec!["-f".into(), "bestaudio/best".into()],
+        h if !h.is_empty() => vec!["-S".into(), format!("res:{h}")],
+        _ => vec![],
+    }
 }
 
 pub fn valid_url(u: &str) -> bool {
@@ -234,6 +257,18 @@ mod tests {
                 .unwrap();
         assert_eq!(d.url2.as_deref(), Some("https://v.example/a"));
         assert_eq!(ext_from_label(&d.label).as_deref(), Some("mkv"));
+    }
+
+    #[test]
+    fn parse_kara_quality_and_batch() {
+        let r = parse("1:GET\r\n2:https://youtu.be/x\r\n6:hls\r\n10:720\r\n11:1\r\n").unwrap();
+        assert_eq!((r.quality.as_str(), r.batch), ("720", true));
+        assert_eq!(ytdlp_format_args(&r.quality), ["-S", "res:720"]);
+        assert_eq!(ytdlp_format_args("audio"), ["-f", "bestaudio/best"]);
+        let r = parse("1:GET\r\n2:https://youtu.be/x\r\n10:--exec rm\r\n").unwrap();
+        assert_eq!((r.quality.as_str(), r.batch), ("", false));
+        assert!(ytdlp_format_args(&r.quality).is_empty());
+        assert!(r.headers.is_empty());
     }
 
     #[test]

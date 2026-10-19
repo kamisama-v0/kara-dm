@@ -15,7 +15,59 @@
     minSizeMB: 0,
     videoButton: true,
     notify: true,
+    videoQuality: "best",
   };
+
+  // Kualitas video untuk yt-dlp (halaman video, HLS, DASH): tinggi maksimum atau audio saja.
+  const QUALITIES = [
+    ["best", "Terbaik"],
+    ["2160", "4K (2160p)"],
+    ["1440", "1440p"],
+    ["1080", "1080p"],
+    ["720", "720p"],
+    ["480", "480p"],
+    ["360", "360p"],
+    ["audio", "Audio saja"],
+  ];
+
+  function qualityLabel(q) {
+    return (QUALITIES.find(([v]) => v === q) || QUALITIES[0])[1];
+  }
+
+  // Kategori tautan untuk unduh massal, menurut ekstensi berkas di URL.
+  const CATEGORIES = [
+    ["video", "Video", "mp4 mkv webm mov avi m4v flv wmv 3gp mpg mpeg"],
+    ["audio", "Audio", "mp3 m4a flac wav ogg opus aac wma"],
+    ["image", "Gambar", "jpg jpeg png gif webp avif bmp tif tiff heic svg"],
+    ["document", "Dokumen", "pdf doc docx xls xlsx ppt pptx odt ods odp txt csv rtf epub"],
+    ["archive", "Arsip", "zip rar 7z tar gz tgz bz2 xz zst iso dmg img"],
+    ["program", "Program", "exe msi apk deb rpm appimage flatpak pkg jar"],
+  ].map(([id, label, exts]) => ({ id, label, exts: new Set(exts.split(" ")) }));
+
+  function linkCategory(url) {
+    const ext = extOf(url);
+    return (CATEGORIES.find((c) => c.exts.has(ext)) || { id: "other" }).id;
+  }
+
+  // Rapikan tautan mentah dari halaman: hanya http/https/ftp, tanpa #fragmen, tanpa duplikat dan tanpa tautan ke
+  // halaman itu sendiri. raw: [{url, text}] -> [{url, text, name, ext, cat}]
+  function prepareLinks(raw, pageUrl) {
+    const self = String(pageUrl || "").split("#")[0];
+    const seen = new Set();
+    const out = [];
+    for (const r of raw || []) {
+      const url = String(r.url || "").split("#")[0];
+      if (!isCapturableUrl(url) || url === self || seen.has(url)) continue;
+      seen.add(url);
+      let name = url.split("?")[0].split("/").pop() || hostOf(url);
+      try {
+        name = decodeURIComponent(name);
+      } catch {}
+      const text = String(r.text || "").replace(/\s+/g, " ").trim().slice(0, 120);
+      out.push({ url, text, name, ext: extOf(url), cat: linkCategory(url) });
+    }
+    return out;
+  }
 
   // Situs yang videonya lebih baik diunduh yt-dlp lewat URL halaman (stream terpisah / ditandatangani).
   const PAGE_SITES = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|x\.com|twitter\.com|instagram\.com|facebook\.com|tiktok\.com|twitch\.tv|dailymotion\.com|reddit\.com|bilibili\.com)$/i;
@@ -117,7 +169,8 @@
     return PAGE_SITES.test(hostOf(pageUrl));
   }
 
-  // Bentuk pesan protokol NDM. req: {method,url,url2,kind,title,page,referrer,cookies,size,mime,label,headers,body,contentType}
+  // Bentuk pesan protokol NDM. req: {method,url,url2,kind,title,page,referrer,cookies,size,mime,label,headers,body,
+  // contentType,quality,batch}. Kunci 10 (kualitas) dan 11 (unduhan massal) khusus Kara DM; NDM mengabaikannya.
   function buildMessage(req) {
     const lines = [];
     const add = (k, v) => {
@@ -141,6 +194,8 @@
     add("7:", req.size > 0 ? String(req.size) : "");
     add("8:", req.mime);
     add("9:", req.label);
+    add("10:", QUALITIES.some(([v]) => v === req.quality) && req.quality !== "best" ? req.quality : "");
+    add("11:", req.batch ? "1" : "");
     for (const [k, v] of Object.entries(req.headers || {})) {
       if (/^x-[a-z0-9-]+$/i.test(k)) add(k + ": ", v);
     }
@@ -199,6 +254,11 @@
     WS_URL,
     WS_PROTOCOL,
     DEFAULTS,
+    QUALITIES,
+    qualityLabel,
+    CATEGORIES,
+    linkCategory,
+    prepareLinks,
     hostOf,
     extOf,
     siteMatches,
