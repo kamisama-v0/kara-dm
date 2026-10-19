@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Browser extension 0.1.3: first listed (public) version on addons.mozilla.org; same code as 0.1.2.
+
 ## [0.2.0] - 2026-10-20
 
 First public release.
