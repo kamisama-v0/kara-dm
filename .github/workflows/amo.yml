@@ -1,0 +1,52 @@
+name: Firefox Add-ons
+
+# Kirim versi ekstensi ke addons.mozilla.org (listed) untuk direview: otomatis saat tag v* di-push, atau manual
+# (Actions -> Firefox Add-ons -> Run workflow) mis. setelah kiriman gagal, tanpa membuat tag baru.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  amo:
+    name: Firefox Add-ons (AMO)
+    # Kirim versi ekstensi ke addons.mozilla.org (listed) untuk direview. Butuh secret AMO_JWT_ISSUER dan
+    # AMO_JWT_SECRET (https://addons.mozilla.org/developers/addon/api/key/); tanpa secret job ini dilewati.
+    # Tidak memblokir rilis GitHub. AMO menerima tiap nomor versi sekali, jadi rilis aplikasi tanpa menaikkan
+    # versi ekstensi cukup dilewati.
+    runs-on: ubuntu-latest
+    env:
+      WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+      WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+        if: env.WEB_EXT_API_KEY != ''
+      - uses: actions/setup-node@v4
+        if: env.WEB_EXT_API_KEY != ''
+        with:
+          node-version: 22
+      - name: Kirim ke AMO
+        if: env.WEB_EXT_API_KEY != ''
+        run: |
+          v=$(node -p 'require("./manifest.base.json").version')
+          node build.mjs >/dev/null
+          set +e
+          npx -y web-ext@8 sign -s dist/firefox --channel listed --approval-timeout 0 \
+            --amo-metadata amo-metadata.json 2>&1 | tee sign.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -ne 0 ] && grep -qi "already exists" sign.log; then
+            echo "::notice::Ekstensi $v sudah ada di AMO; naikkan version di extension/manifest.base.json untuk mengirim versi baru."
+            exit 0
+          fi
+          [ "$rc" -eq 0 ] && echo "::notice::Ekstensi $v terkirim ke AMO, menunggu review Mozilla."
+          exit "$rc"
+      - name: Lewati (secret belum diisi)
+        if: env.WEB_EXT_API_KEY == ''
+        run: echo "::notice::Secret AMO_JWT_ISSUER/AMO_JWT_SECRET belum diisi; kirim ke AMO dilewati."

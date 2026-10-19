@@ -57,8 +57,8 @@ Rilis cepat (skrip):
   Firefox laptop (juga dari SSH). Tinggal klik *Add*.
 Versi baru: naikkan `version` di `manifest.base.json`, lalu jalankan kedua skrip.
 
-**Rilis publik Firefox (AMO, listed)** ikut otomatis saat tag `v*` di-push: job `amo` di
-`.github/workflows/release.yml` mengirim `dist/firefox` + `amo-metadata.json` (lisensi, catatan reviewer) ke
+**Rilis publik Firefox (AMO, listed)** ikut otomatis saat tag `v*` di-push: workflow
+`.github/workflows/amo.yml` (juga bisa dijalankan manual dari tab Actions) mengirim `dist/firefox` + `amo-metadata.json` (lisensi, catatan reviewer) ke
 addons.mozilla.org untuk direview. Sekali saja, isi secret repo `AMO_JWT_ISSUER` dan `AMO_JWT_SECRET`
 (GitHub → Settings → Secrets and variables → Actions). AMO menerima tiap nomor versi sekali untuk semua channel,
 jadi `./release-firefox.sh` (unlisted) ikut memakai nomor itu: untuk rilis publik cukup naikkan version lalu
@@ -72,7 +72,7 @@ push tag.
 gratis, otomatis):
 1. Buat API key di https://addons.mozilla.org/developers/addon/api/key/ (login akun Firefox sendiri).
 2. `./release-firefox.sh` (meminta JWT issuer + secret, build, tanda tangani, buka .xpi di Firefox → *Add*);
-   key tidak disimpan. Untuk rilis publik (listed) lihat job `amo` di atas.
+   key tidak disimpan. Untuk rilis publik (listed) lihat workflow `amo.yml` di atas.
 
 Untuk coba tanpa tanda tangan: `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* →
 `dist/firefox/manifest.json` (hilang saat Firefox ditutup).
