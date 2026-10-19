@@ -1,0 +1,67 @@
+# Kara DM — ekstensi browser
+
+Ekstensi sendiri (Firefox + Chromium, Manifest V3) pengganti ekstensi Neat Download Manager. Mengirim unduhan dan
+video ke **Kara Download Manager** (`../`) lewat protokol aplikasi NDM (`ws://127.0.0.1:10007/download`,
+subprotocol `neatextension.v1`), jadi juga bisa dipakai dengan NDM asli di Windows/macOS. Ditulis dari nol; tidak
+memakai kode ekstensi NDM.
+
+## Perilaku
+
+- **Tangkap unduhan** lewat `downloads.onCreated`: unduhan yang sudah diputuskan browser diambil alih (dibatalkan
+  di browser, dikirim ke aplikasi dengan cookie + referer, body POST ikut bila ada). Kalau aplikasi tidak jalan,
+  unduhan **dibiarkan** ke browser (tidak hilang) dan muncul notifikasi. Jendela privat, `blob:`/`data:`, situs
+  yang dikecualikan, jenis berkas yang diabaikan, dan berkas di bawah ukuran minimum dibiarkan ke browser.
+- **Menu klik kanan**: unduh tautan / media / video halaman ini (yt-dlp).
+- **Media per tab** dari `webRequest.onHeadersReceived` (non-blocking): berkas video/audio utuh ≥ 512 KB, playlist
+  HLS `.m3u8` dan DASH `.mpd`; potongan stream (segmen `.ts`/`.m4s`, range parsial, googlevideo) diabaikan. Jumlahnya
+  tampil di badge ikon.
+- **Tombol kaca "Unduh video"** di atas pemutar (Shadow DOM tertutup, `backdrop-filter`), daftar media + "Video
+  halaman ini (yt-dlp)" untuk YouTube/Vimeo/X/dll.
+- **Popup**: status koneksi, tangkap on/off, matikan per situs, media tab ini. **Opsi**: situs dikecualikan, jenis
+  berkas, ukuran minimum, tombol video, notifikasi.
+
+## Struktur
+
+| File | Isi |
+| --- | --- |
+| `src/common.js` | logika murni (pesan protokol, filter, klasifikasi media) — diuji `node --test` |
+| `src/background.js` | event page (Firefox) / service worker (Chromium) |
+| `src/content.js` | tombol video di halaman |
+| `src/popup.*`, `src/options.*`, `src/glass.css` | UI kaca ala macOS Tahoe |
+| `manifest.base.json` + `build.mjs` | manifest bersama; build menambah bagian khusus tiap browser ke `dist/` |
+
+## Build & tes
+
+```bash
+node --test test/
+node build.mjs                      # -> dist/firefox, dist/chromium
+npx web-ext lint -s dist/firefox    # validasi aturan AMO
+```
+
+## Memasang
+
+Rilis cepat (skrip):
+- `./release-chrome.sh` — kemas `.crx` (kunci `~/.config/kara-dm/chrome-extension.pem`, ID
+  `gfkkodmmgbcaacfbjegmpnedhpldeloj`) dan daftarkan sebagai ekstensi eksternal Google Chrome + Chromium
+  (`/usr/share/{google-chrome,chromium}/extensions/<id>.json` → `~/.local/share/kara-dm/kara-dm-chrome.crx`).
+  Browser memasang/memperbarui saat dibuka berikutnya. Chrome Web Store (publik) butuh akun developer berbayar.
+- `./release-firefox.sh` — tes, build, minta API key AMO (tidak disimpan), tanda tangani unlisted, buka `.xpi` di
+  Firefox laptop (juga dari SSH). Tinggal klik *Add*.
+Versi baru: naikkan `version` di `manifest.base.json`, lalu jalankan kedua skrip.
+
+
+**Chromium / Chrome**: `chrome://extensions` → aktifkan *Developer mode* → *Load unpacked* → pilih
+`dist/chromium`. Tetap terpasang selama folder itu ada (setelah build ulang klik ↻ di kartu ekstensi).
+
+**Firefox** (rilis wajib bertanda tangan Mozilla): tanda tangani sebagai *unlisted* (tidak tampil di AMO,
+gratis, otomatis):
+1. Buat API key di https://addons.mozilla.org/developers/addon/api/key/ (login akun Firefox sendiri).
+2. `./sign-firefox.sh` (meminta JWT issuer + secret, build, tanda tangani, buka .xpi di Firefox)
+   (key jangan disimpan di repo).
+3. Buka `.xpi` hasilnya (folder `web-ext-artifacts/`) di Firefox → *Add*.
+Versi baru: naikkan `version` di `manifest.base.json`, build, tanda tangani lagi.
+
+Untuk coba tanpa tanda tangan: `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* →
+`dist/firefox/manifest.json` (hilang saat Firefox ditutup).
+
+Setelah Kara DM terpasang, matikan ekstensi NDM resmi agar unduhan tidak ditangkap dua kali.

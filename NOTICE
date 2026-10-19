@@ -1,0 +1,17 @@
+Kara Download Manager
+Copyright 2026 kamisama-v0 and contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Interoperability notice
+-----------------------
+Kara Download Manager and the Kara DM browser extension speak the same local WebSocket protocol as the
+Neat Download Manager desktop application, so that either app works with either browser extension. The protocol
+was documented from observable behaviour for interoperability. No code, binaries or assets from Neat Download
+Manager are used or distributed. "Neat Download Manager" is a product of its respective owner; this project is
+not affiliated with, sponsored or endorsed by it.
+
+Third-party software
+--------------------
+Binary releases bundle separately licensed programs and libraries (aria2, GTK, GLib, libadwaita, yt-dlp, and
+ffmpeg in the Flatpak). They are listed with their licenses and source locations in THIRD-PARTY.md.

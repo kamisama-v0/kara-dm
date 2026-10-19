@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: App (Linux, Rust)
+    runs-on: ubuntu-latest
+    # Ubuntu LTS belum punya GTK 4.16 / libadwaita 1.6; Arch selalu terbaru.
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed base-devel git rust gtk4 libadwaita aria2
+      - uses: actions/checkout@v4
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked
+      - name: Self-test (aria2 + WebSocket, tanpa jendela)
+        run: cargo run --locked --release -- --selftest
+
+  extension:
+    name: Browser extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test test/
+      - run: node build.mjs
+      - name: Lint (aturan addons.mozilla.org)
+        run: npx -y web-ext@8 lint -s dist/firefox --warnings-as-errors

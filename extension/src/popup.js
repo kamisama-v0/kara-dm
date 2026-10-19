@@ -1,0 +1,100 @@
+const api = globalThis.browser ?? globalThis.chrome;
+const K = globalThis.KDM;
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text) e.textContent = text;
+  return e;
+}
+
+const empty = (text) => el("div", "empty", text);
+
+function ask(msg) {
+  return api.runtime.sendMessage(msg).then((r) => {
+    if (r && r.error) throw new Error(r.error);
+    return r;
+  });
+}
+
+async function main() {
+  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+  const settings = { ...K.DEFAULTS, ...(await api.storage.local.get(K.DEFAULTS)) };
+  const host = tab && /^https?:/i.test(tab.url || "") ? K.hostOf(tab.url) : "";
+
+  $("capture").checked = settings.capture;
+  $("capture").onchange = (e) => api.storage.local.set({ capture: e.target.checked });
+  if (host) {
+    $("site").textContent = host.replace(/^www\./, "");
+    $("siteOff").checked = K.siteMatches(host, settings.excludedSites);
+    $("siteOff").onchange = async (e) => {
+      const { excludedSites } = await api.storage.local.get({ excludedSites: [] });
+      const bare = host.replace(/^www\./, "");
+      const list = excludedSites.filter((s) => !K.siteMatches(host, [s]));
+      if (e.target.checked) list.push(bare);
+      api.storage.local.set({ excludedSites: list });
+    };
+  } else {
+    $("siteRow").hidden = true;
+  }
+  $("options").onclick = () => api.runtime.openOptionsPage();
+  $("help").onclick = () => api.tabs.create({ url: api.runtime.getURL("options.html#tentang") });
+
+  ask({ type: "status" }).then(
+    ({ connected }) => {
+      $("dot").className = "dot " + (connected ? "on" : "off");
+      $("status").textContent = connected ? "Terhubung" : "Aplikasi tidak jalan";
+    },
+    () => ($("status").textContent = "Tidak diketahui"),
+  );
+
+  const box = $("media");
+  if (!host) {
+    box.replaceChildren(empty("Tidak ada media di halaman ini."));
+    return;
+  }
+  const { items } = await ask({ type: "media", tabId: tab.id });
+  if (!items.length) {
+    box.replaceChildren(empty("Belum ada media terdeteksi. Putar videonya sebentar, atau klik kanan halaman → \"Unduh video halaman ini\"."));
+    return;
+  }
+  box.textContent = "";
+  for (const it of items) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.tabIndex = 0;
+    const name = it.page ? it.label : it.url.split("?")[0].split("/").pop() || it.label;
+    const sub = it.page ? "kualitas terbaik, video + audio" : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
+    const grow = el("span", "grow");
+    const title = el("div", "ellipsis");
+    grow.append(title, el("div", "sub ellipsis", sub));
+    const state = el("span", "state");
+    state.append(K.svgIcon(document, "download"));
+    row.append(grow, state);
+    let shown = name;
+    try {
+      shown = decodeURIComponent(name);
+    } catch {}
+    title.textContent = shown;
+    row.title = it.url;
+    const go = async () => {
+      try {
+        await ask({ type: "download", tabId: tab.id, item: it });
+        state.className = "state done";
+        state.textContent = "Dikirim";
+      } catch (e) {
+        state.className = "state fail";
+        state.textContent = "Gagal";
+        row.title = e.message;
+      }
+    };
+    row.onclick = go;
+    row.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && go();
+    box.appendChild(row);
+  }
+}
+
+main().catch((e) => {
+  $("media").replaceChildren(empty(e.message));
+});

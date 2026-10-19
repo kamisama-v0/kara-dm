@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Varian 16-32 px: garis lebih tebal, tanpa hairline (terlalu tipis di ukuran kecil). -->
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="#0b0b0c"/>
+  <g fill="none" stroke="#f4f5f4" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 7.5v17"/>
+    <path d="M21.5 7.5 11.6 17.4"/>
+    <path d="M15.2 14l5.8 7.4"/>
+  </g>
+  <circle cx="21.4" cy="22" r="2.6" fill="#34a865"/>
+</svg>

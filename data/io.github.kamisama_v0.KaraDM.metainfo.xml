@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.kamisama_v0.KaraDM</id>
+  <name>Kara Download Manager</name>
+  <summary>Multi-connection downloads from your browser</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <developer id="io.github.kamisama_v0">
+    <name>kamisama-v0</name>
+  </developer>
+  <description>
+    <p>
+      Kara Download Manager splits each download into parallel connections, resumes interrupted transfers and
+      catches downloads and videos straight from your browser through the Kara DM extension (Firefox, Chrome,
+      Chromium). It also works with the Neat Download Manager browser extension.
+    </p>
+    <ul>
+      <li>Up to 16 connections per file with a live segment bar</li>
+      <li>Resume after restarts and network drops</li>
+      <li>HLS and DASH video streams (yt-dlp, ffmpeg)</li>
+      <li>Categories, speed limit and concurrent download limit</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.kamisama_v0.KaraDM.desktop</launchable>
+  <url type="homepage">https://github.com/kamisama-v0/kara-dm</url>
+  <url type="bugtracker">https://github.com/kamisama-v0/kara-dm/issues</url>
+  <url type="vcs-browser">https://github.com/kamisama-v0/kara-dm</url>
+  <url type="contribute">https://github.com/kamisama-v0/kara-dm/blob/main/CONTRIBUTING.md</url>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="0.2.0" date="2026-10-19">
+      <description>
+        <p>First public release: Linux (Flatpak) and Windows builds, new logo, Kara DM browser extension.</p>
+      </description>
+    </release>
+  </releases>
+</component>

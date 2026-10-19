@@ -1,0 +1,89 @@
+# Flatpak Kara Download Manager. Bangun lokal:
+#   flatpak-builder --user --install --install-deps-from=flathub --force-clean build \
+#     packaging/flatpak/io.github.kamisama_v0.KaraDM.yml
+# Modul kara-dm memakai jaringan saat build (cargo) — dibolehkan untuk build lokal/CI; Flathub butuh
+# cargo-sources.json (flatpak-cargo-generator) sebagai gantinya.
+id: io.github.kamisama_v0.KaraDM
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: kara-dm
+finish-args:
+  - --share=network # unduhan + 127.0.0.1:10007 untuk ekstensi browser
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=xdg-download # folder unduhan bawaan; folder lain lewat portal pemilih folder
+
+modules:
+  - name: aria2
+    config-opts:
+      - --with-openssl
+      - --without-gnutls
+      - --without-libxml2
+      - --without-libexpat
+      - --disable-bittorrent
+      - --disable-metalink
+      - --without-sqlite3
+    cleanup:
+      - /share/doc
+      - /share/man
+      - /share/locale
+    sources:
+      - type: archive
+        url: https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0.tar.xz
+        sha256: 60a420ad7085eb616cb6e2bdf0a7206d68ff3d37fb5a956dc44242eb2f79b66b
+
+  - name: ffmpeg
+    config-opts:
+      - --disable-doc
+      - --disable-debug
+      - --disable-static
+      - --enable-shared
+      - --disable-ffplay
+      - --disable-ffprobe
+      - --disable-avdevice
+      - --disable-network
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /share/ffmpeg
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz
+        sha256: 7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3
+
+  - name: yt-dlp
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 yt-dlp /app/bin/yt-dlp
+    sources:
+      - type: file
+        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp
+        sha256: 1fa6733c37ea6fb51c99ad8fe785e7b7e5f3246c9b980230329d4fb72ed8d4d6
+
+  - name: kara-dm
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      build-args:
+        - --share=network
+      env:
+        CARGO_HOME: /run/build/kara-dm/cargo
+    build-commands:
+      - cargo build --release --locked
+      - install -Dm755 target/release/kara-dm /app/bin/kara-dm
+      - install -Dm644 data/io.github.kamisama_v0.KaraDM.desktop /app/share/applications/io.github.kamisama_v0.KaraDM.desktop
+      - install -Dm644 data/io.github.kamisama_v0.KaraDM.metainfo.xml /app/share/metainfo/io.github.kamisama_v0.KaraDM.metainfo.xml
+      - install -Dm644 data/icons/io.github.kamisama_v0.KaraDM.svg /app/share/icons/hicolor/scalable/apps/io.github.kamisama_v0.KaraDM.svg
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - extension/dist
+          - extension/node_modules
+          - extension/web-ext-artifacts

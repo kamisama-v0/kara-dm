@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  flatpak:
+    name: Linux (Flatpak)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-49
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: kara-dm-linux-x86_64.flatpak
+          manifest-path: packaging/flatpak/io.github.kamisama_v0.KaraDM.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-flatpak
+          path: kara-dm-linux-x86_64.flatpak
+
+  windows:
+    name: Windows (x64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            zip
+            mingw-w64-ucrt-x86_64-rust
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-librsvg
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme
+            mingw-w64-ucrt-x86_64-aria2
+      - name: Build
+        run: cargo build --release --locked
+      - name: yt-dlp.exe (rilis resmi, checksum diverifikasi)
+        run: |
+          mkdir -p dist/windows
+          v=2026.08.19
+          curl -fsSL -o dist/windows/yt-dlp.exe "https://github.com/yt-dlp/yt-dlp/releases/download/$v/yt-dlp.exe"
+          echo "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a  dist/windows/yt-dlp.exe" | sha256sum -c
+      - name: Bundle
+        run: bash packaging/windows/bundle.sh
+      - name: Self-test bundel (tanpa MSYS2 di PATH)
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Windows\System32;C:\Windows"
+          $p = Start-Process -FilePath dist\windows\kara-dm\kara-dm.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow -RedirectStandardOutput selftest.txt
+          Get-Content selftest.txt
+          if ($p.ExitCode -ne 0) { throw "selftest gagal: $($p.ExitCode)" }
+      - name: Portable zip
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          cd dist/windows && zip -qr "kara-dm-$v-windows-x64-portable.zip" kara-dm
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" packaging\windows\kara-dm.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/windows/*.zip
+            dist/windows/*-setup.exe
+
+  extension:
+    name: Browser extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test test/ && node build.mjs
+      - name: Zip
+        run: |
+          v=$(node -p 'require("./manifest.base.json").version')
+          (cd dist/chromium && zip -qr "../../kara-dm-extension-$v-chromium.zip" .)
+          (cd dist/firefox && zip -qr "../../kara-dm-extension-$v-firefox-unsigned.zip" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          path: extension/*.zip
+
+  release:
+    name: GitHub Release
+    needs: [flatpak, windows, extension]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Catatan rilis dari CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## \\[?"v"\\]?" {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+          cat notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.md
+          files: artifacts/*

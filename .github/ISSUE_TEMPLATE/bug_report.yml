@@ -1,0 +1,41 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: kara-dm version
+      placeholder: "kara-dm --version"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows 11, Windows 10, Linux (Flatpak), Linux (from source), Other]
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and extension
+      placeholder: "Firefox 158 + Kara DM 0.1.2 / Chrome 155 + NDM extension 1.9.9"
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Output of `kara-dm --selftest`
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Linux `journalctl --user -u kara-dm`, aria2 log in the data folder. Remove cookies, tokens and private URLs.
+      render: text

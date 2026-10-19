@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Kara Download Manager
+GenericName=Download Manager
+Comment=Multi-connection downloads from your browser
+Comment[id]=Unduhan multi-koneksi dari browser
+Exec=kara-dm %U
+Icon=io.github.kamisama_v0.KaraDM
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=download;downloader;aria2;manager;unduh;
+StartupNotify=true
+StartupWMClass=io.github.kamisama_v0.KaraDM
+DBusActivatable=false

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Pengaturan Kara DM</title>
+<link rel="stylesheet" href="glass.css">
+<style>
+  body { min-height: 100vh; padding: 48px 16px; }
+  main { max-width: 560px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 10px; margin: 0 6px 18px; }
+  header img { width: 32px; height: 32px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  .row { align-items: flex-start; }
+  .row > .grow > div:first-child { margin-top: 2px; }
+  .switch { margin-top: 2px; }
+  textarea, input[type="number"] {
+    width: 100%; margin-top: 8px; font: inherit; color: inherit; resize: vertical;
+    background: rgba(127, 127, 127, 0.12); border: 0; border-radius: 8px; padding: 8px 10px;
+  }
+  input[type="number"] { width: 110px; }
+  p { color: var(--text-2); margin: 6px 4px; line-height: 1.5; }
+  code { font-size: 12px; }
+  .saved { opacity: 0; transition: opacity 0.2s; color: var(--on); margin: 10px 6px; font-size: 12px; }
+  .saved.show { opacity: 1; }
+</style>
+</head>
+<body>
+<main>
+  <header><img src="icons/48.png" alt=""><h1>Kara DM</h1></header>
+
+  <div class="section">Unduhan</div>
+  <div class="glass">
+    <label class="row">
+      <span class="grow"><div>Tangkap unduhan browser</div><div class="sub">Unduhan dikirim ke Kara Download Manager (multi-koneksi). Kalau aplikasinya tidak jalan, browser tetap mengunduh sendiri.</div></span>
+      <span class="switch"><input type="checkbox" id="capture"><span></span></span>
+    </label>
+    <div class="row">
+      <span class="grow"><div>Situs yang dikecualikan</div><div class="sub">Satu domain per baris; sub-domain ikut.</div>
+        <textarea id="excludedSites" rows="4" placeholder="drive.google.com"></textarea></span>
+    </div>
+    <div class="row">
+      <span class="grow"><div>Jenis berkas yang dibiarkan ke browser</div><div class="sub">Ekstensi dipisah koma.</div>
+        <textarea id="ignoredExtensions" rows="2" placeholder="pdf, jpg, png"></textarea></span>
+    </div>
+    <div class="row">
+      <span class="grow"><div>Ukuran minimum (MB)</div><div class="sub">Berkas lebih kecil dibiarkan ke browser; 0 = semua. Hanya berlaku bila ukurannya sudah diketahui.</div>
+        <input type="number" id="minSizeMB" min="0" step="1"></span>
+    </div>
+  </div>
+
+  <div class="section">Video &amp; tampilan</div>
+  <div class="glass">
+    <label class="row">
+      <span class="grow"><div>Tombol "Unduh video" di atas pemutar</div><div class="sub">Muncul saat kursor di atas video.</div></span>
+      <span class="switch"><input type="checkbox" id="videoButton"><span></span></span>
+    </label>
+    <label class="row">
+      <span class="grow"><div>Notifikasi</div><div class="sub">Saat aplikasi tidak jalan atau pengiriman gagal.</div></span>
+      <span class="switch"><input type="checkbox" id="notify"><span></span></span>
+    </label>
+  </div>
+  <div class="saved" id="saved">Tersimpan</div>
+
+  <div class="section" id="tentang">Tentang</div>
+  <div class="glass">
+    <p>Kara DM mengirim unduhan ke <b>Kara Download Manager</b> lewat <code>ws://127.0.0.1:10007</code>, protokol yang sama dengan aplikasi Neat Download Manager, jadi juga bekerja dengan NDM di Windows/macOS. Tidak ada data yang dikirim ke internet.</p>
+    <p>Video: putar sebentar agar alirannya terdeteksi, lalu pakai tombol di atas pemutar atau popup. "Video halaman ini" mengunduh lewat yt-dlp (YouTube, Vimeo, X, dll).</p>
+    <p>Matikan ekstensi NDM resmi bila masih terpasang, agar unduhan tidak ditangkap dua kali.</p>
+  </div>
+</main>
+<script src="common.js"></script>
+<script src="options.js"></script>
+</body>
+</html>
