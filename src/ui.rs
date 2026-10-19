@@ -664,7 +664,12 @@ pub fn settings_dialog(app: &Rc<App>, parent: &impl IsA<gtk::Widget>) {
     dialog.set_title("Pengaturan");
     let page = adw::PreferencesPage::new();
 
-    let g = adw::PreferencesGroup::builder().title("Unduhan").build();
+    let g = adw::PreferencesGroup::builder()
+        .title("Unduhan")
+        .description(
+            "Selama diunduh, berkas ada di subfolder \"temp\" folder ini, lalu dipindah ke sini begitu selesai.",
+        )
+        .build();
     let dir = Rc::new(RefCell::new(s.download_dir.clone()));
     let dir_row = adw::ActionRow::builder().title("Folder unduhan").subtitle(s.dir().to_string_lossy()).build();
     let pick = gtk::Button::builder()

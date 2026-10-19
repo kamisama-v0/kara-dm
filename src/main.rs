@@ -112,14 +112,32 @@ fn num(s: &Value, k: &str) -> u64 {
     s.get(k).and_then(Value::as_str).and_then(|v| v.parse().ok()).unwrap_or(0)
 }
 
-fn unique_name(dir: &Path, stem: &str, ext: &str) -> String {
-    let mut name = format!("{stem}.{ext}");
+/// Subfolder folder unduhan untuk berkas yang belum selesai.
+const TEMP_DIR: &str = "temp";
+
+/// Nama yang belum dipakai di semua folder `dirs` (mis. folder unduhan dan folder temp-nya).
+fn unique_name(dirs: &[&Path], stem: &str, ext: &str) -> String {
+    let dot = if ext.is_empty() { "" } else { "." };
+    let mut name = format!("{stem}{dot}{ext}");
     let mut i = 1;
-    while dir.join(&name).exists() {
-        name = format!("{stem} ({i}).{ext}");
+    while dirs.iter().any(|d| d.join(&name).exists()) {
+        name = format!("{stem} ({i}){dot}{ext}");
         i += 1;
     }
     name
+}
+
+/// Pindahkan berkas yang sudah selesai dari folder temp ke folder unduhan. Folder temp ada di dalam folder
+/// unduhan (satu drive), jadi ini hanya ganti nama, bukan menyalin.
+fn move_to_final(path: &Path, dir: &Path) -> std::io::Result<PathBuf> {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let (stem, ext) = match protocol::ext_of(&name) {
+        Some(ext) => (name[..name.len() - ext.len() - 1].to_string(), name[name.len() - ext.len()..].to_string()),
+        None => (name.clone(), String::new()),
+    };
+    let target = dir.join(unique_name(&[dir], &stem, &ext));
+    std::fs::rename(path, &target)?;
+    Ok(target)
 }
 
 impl App {
@@ -330,7 +348,9 @@ impl App {
 
     fn add(self: &Rc<Self>, req: protocol::Request, from_browser: bool) {
         let dir = self.settings.borrow().dir();
-        let _ = std::fs::create_dir_all(&dir);
+        let temp = dir.join(TEMP_DIR);
+        let _ = std::fs::create_dir_all(&temp);
+        let dirs = [dir.as_path(), temp.as_path()];
         let title = protocol::title_stem(&req.title);
         let base = protocol::url_basename(&req.url);
         let mut it = Item {
@@ -340,6 +360,7 @@ impl App {
             page: req.page.clone(),
             title: req.title.clone(),
             dir: dir.to_string_lossy().into_owned(),
+            temp_dir: temp.to_string_lossy().into_owned(),
             size: req.size,
             added: model::now(),
             headers: req.headers.clone(),
@@ -354,18 +375,18 @@ impl App {
             it.name = if base.is_empty() { "unduhan".into() } else { base };
         } else if req.url2.is_some() {
             it.kind = Kind::Mkv;
-            it.name = unique_name(&dir, &media_stem, "mkv");
+            it.name = unique_name(&dirs, &media_stem, "mkv");
             it.fixed_name = true;
         } else if req.is_hls() {
             it.kind = Kind::Ytdlp;
-            it.name = unique_name(&dir, &media_stem, if req.quality == "audio" { "m4a" } else { "mp4" });
+            it.name = unique_name(&dirs, &media_stem, if req.quality == "audio" { "m4a" } else { "mp4" });
             it.fixed_name = true;
         } else if req.kind == "media" {
             let ext = protocol::ext_from_label(&req.label)
                 .or_else(|| protocol::ext_of(&base))
                 .or_else(|| protocol::ext_from_mime(&req.mime).map(String::from))
                 .unwrap_or_else(|| "mp4".into());
-            it.name = unique_name(&dir, &media_stem, &ext);
+            it.name = unique_name(&dirs, &media_stem, &ext);
             it.fixed_name = true;
         } else {
             // Nama final ditentukan aria2 (Content-Disposition / URL); ini hanya tampilan sementara.
@@ -424,10 +445,10 @@ impl App {
         match it.kind {
             Kind::Aria2 => {
                 let out = (it.fixed_name || !it.path.is_empty()).then(|| it.name.clone());
-                it.gids = vec![self.aria_add(&it.url, &it.dir, out.as_deref(), &it.headers, conns)?];
+                it.gids = vec![self.aria_add(&it.url, it.work_dir(), out.as_deref(), &it.headers, conns)?];
             }
             Kind::Mkv => {
-                let parts = self.paths.parts.join(&it.id);
+                let parts = self.parts_dir(it);
                 std::fs::create_dir_all(&parts).map_err(|e| e.to_string())?;
                 let p = parts.to_string_lossy().into_owned();
                 let v = self.aria_add(&it.url, &p, Some("video"), &it.headers, conns)?;
@@ -445,6 +466,11 @@ impl App {
         }
         it.status = Status::Waiting;
         Ok(())
+    }
+
+    /// Potongan video + audio DASH sebelum digabung.
+    fn parts_dir(&self, it: &Item) -> PathBuf {
+        if it.temp_dir.is_empty() { self.paths.parts.join(&it.id) } else { Path::new(&it.temp_dir).join(&it.id) }
     }
 
     fn ytdlp_job(&self, it: &Item) -> Result<jobs::Job, String> {
@@ -469,7 +495,14 @@ impl App {
             }
         }
         let stem = it.name.rsplit_once('.').map(|x| x.0).unwrap_or(&it.name);
-        cmd.arg("-o").arg(Path::new(&it.dir).join(format!("{stem}.%(ext)s"))).arg("--").arg(&it.url);
+        if it.temp_dir.is_empty() {
+            cmd.arg("-o").arg(Path::new(&it.dir).join(format!("{stem}.%(ext)s")));
+        } else {
+            // Potongan .part di folder temp; yt-dlp sendiri memindahkan hasil akhirnya ke folder unduhan.
+            cmd.arg("-P").arg(format!("home:{}", it.dir)).arg("-P").arg(format!("temp:{}", it.temp_dir));
+            cmd.arg("-o").arg(format!("{stem}.%(ext)s"));
+        }
+        cmd.arg("--").arg(&it.url);
         Ok(jobs::Job { id: it.id.clone(), cmd, dir: it.dir.clone().into(), temp, output: None })
     }
 
@@ -493,18 +526,18 @@ impl App {
             .arg("--data-binary")
             .arg(format!("@{}", bfile.display()))
             .arg("--output-dir")
-            .arg(&it.dir)
+            .arg(it.work_dir())
             .args(["-O", "-J", "-w", "%{filename_effective}\n"])
             .arg(&it.url);
-        Ok(jobs::Job { id: it.id.clone(), cmd, dir: it.dir.clone().into(), temp: vec![hfile, bfile], output: None })
+        Ok(jobs::Job { id: it.id.clone(), cmd, dir: it.work_dir().into(), temp: vec![hfile, bfile], output: None })
     }
 
     fn start_merge(&self, id: &str) {
         let Some(it) = self.item(id) else { return };
-        let parts = self.paths.parts.join(&it.id);
+        let parts = self.parts_dir(&it);
         let dir = PathBuf::from(&it.dir);
         let stem = it.name.rsplit_once('.').map(|x| x.0).unwrap_or(&it.name).to_string();
-        let name = unique_name(&dir, &stem, "mkv");
+        let name = unique_name(&[&dir], &stem, "mkv");
         let out = dir.join(&name);
         let mut cmd = platform::tool("ffmpeg");
         cmd.args(["-nostdin", "-hide_banner", "-loglevel", "error", "-n", "-i"])
@@ -540,7 +573,7 @@ impl App {
         match result {
             Ok(path) => {
                 if it.kind == Kind::Mkv {
-                    let _ = std::fs::remove_dir_all(self.paths.parts.join(id));
+                    let _ = std::fs::remove_dir_all(self.parts_dir(&it));
                 }
                 self.with_item(id, |it| {
                     if let Some(p) = path.filter(|p| Path::new(p).exists()) {
@@ -578,6 +611,16 @@ impl App {
         let Some(it) = self.with_item(id, |it| {
             it.finished = model::now();
             it.speed = 0;
+            if !it.temp_dir.is_empty() && !it.path.is_empty() && Path::new(&it.path).starts_with(&it.temp_dir) {
+                match move_to_final(Path::new(&it.path), Path::new(&it.dir)) {
+                    Ok(p) => {
+                        it.name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                        it.path = p.to_string_lossy().into_owned();
+                    }
+                    // Berkas tetap utuh di folder temp; "Buka folder" tetap menunjuk ke sana.
+                    Err(e) => eprintln!("kara-dm: gagal memindahkan {} dari folder temp: {e}", it.path),
+                }
+            }
             it.clone()
         }) else {
             return;
@@ -809,7 +852,7 @@ impl App {
                     }
                 }
                 if it.kind == Kind::Mkv && it.status == Status::Error {
-                    let parts = self.paths.parts.join(&it.id);
+                    let parts = self.parts_dir(&it);
                     if parts.join("video").exists()
                         && parts.join("audio").exists()
                         && !parts.join("video.aria2").exists()
@@ -885,11 +928,11 @@ impl App {
                     let _ = std::fs::remove_file(format!("{}.aria2", it.path));
                 }
                 if it.kind == Kind::Mkv {
-                    let _ = std::fs::remove_dir_all(self.paths.parts.join(id));
+                    let _ = std::fs::remove_dir_all(self.parts_dir(&it));
                 }
                 if it.kind == Kind::Ytdlp && !it.status.finished() {
                     let stem = it.name.rsplit_once('.').map(|x| x.0).unwrap_or(&it.name).to_string();
-                    if let Ok(rd) = std::fs::read_dir(&it.dir) {
+                    if let Ok(rd) = std::fs::read_dir(it.work_dir()) {
                         for e in rd.flatten() {
                             let n = e.file_name().to_string_lossy().into_owned();
                             if n.starts_with(&format!("{stem}.")) && (n.contains(".part") || n.ends_with(".ytdl")) {
@@ -1149,4 +1192,26 @@ fn main() -> glib::ExitCode {
         });
     }
     gapp.run()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finished_file_moves_out_of_temp_with_unique_name() {
+        let dir = std::env::temp_dir().join(format!("kara-dm-test-{}", model::new_id()));
+        let temp = dir.join(TEMP_DIR);
+        std::fs::create_dir_all(&temp).unwrap();
+        std::fs::write(dir.join("a.zip"), "lama").unwrap();
+        std::fs::write(temp.join("a.zip"), "baru").unwrap();
+        std::fs::write(temp.join("README"), "x").unwrap();
+        assert_eq!(unique_name(&[&dir, &temp], "a", "zip"), "a (1).zip");
+        let p = move_to_final(&temp.join("a.zip"), &dir).unwrap();
+        assert_eq!(p, dir.join("a (1).zip"));
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "baru");
+        assert!(!temp.join("a.zip").exists());
+        assert_eq!(move_to_final(&temp.join("README"), &dir).unwrap(), dir.join("README"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Unfinished downloads are kept in a `temp` subfolder of the download folder (including aria2 `.aria2` control
+  files, yt-dlp `.part` files and DASH parts) and moved into the download folder when complete, renamed
+  `name (1).ext` if the name is taken. The `temp` folder follows the download folder when you change it.
+  Downloads started by older versions finish where they are.
+
+### Fixed
+- On Windows, DASH video and audio parts were stored in the Temporary Internet Files folder on C:, which Disk
+  Cleanup may empty; they now stay next to the download.
+
 ## [0.3.0] - 2026-10-20
 
 ### Added

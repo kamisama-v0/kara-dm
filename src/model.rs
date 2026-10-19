@@ -143,6 +143,9 @@ pub struct Item {
     pub name: String,
     pub path: String,
     pub dir: String,
+    /// Folder kerja selama unduhan berjalan (`<dir>/temp`); berkas dipindah ke `dir` begitu selesai. Kosong =
+    /// unduhan dari versi lama yang langsung ditulis ke `dir`.
+    pub temp_dir: String,
     pub url: String,
     pub url2: String,
     pub page: String,
@@ -194,6 +197,10 @@ pub fn new_id() -> String {
 impl Item {
     pub fn display_name(&self) -> &str {
         if !self.name.is_empty() { &self.name } else { &self.url }
+    }
+    /// Tempat berkas yang belum selesai ditulis.
+    pub fn work_dir(&self) -> &str {
+        if self.temp_dir.is_empty() { &self.dir } else { &self.temp_dir }
     }
     pub fn fraction(&self) -> f64 {
         if self.status == Status::Complete {
