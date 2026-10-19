@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 - Browser extension 0.1.3: first listed (public) version on addons.mozilla.org; same code as 0.1.2.
+- Release workflow submits the Firefox extension to addons.mozilla.org (listed) when the AMO API key secrets are set.
 
 ## [0.2.0] - 2026-10-20
 

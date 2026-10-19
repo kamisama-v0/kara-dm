@@ -1,0 +1,6 @@
+{
+  "version": {
+    "license": "Apache-2.0",
+    "approval_notes": "Kara DM is the browser companion of Kara Download Manager (open source, Apache-2.0): https://github.com/kamisama-v0/kara-dm\nIt sends download links (URL, referrer, cookies of that URL) only to a local desktop app over ws://127.0.0.1:10007. No remote servers, no analytics, no remote code. The same protocol is used by Neat Download Manager.\nWithout the desktop app, downloads stay in the browser and a notification says the app is not running.\nSource: extension/ in the repository; build with `node build.mjs` (no bundler, no minifier)."
+  }
+}
