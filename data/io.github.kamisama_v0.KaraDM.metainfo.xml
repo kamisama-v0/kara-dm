@@ -32,6 +32,12 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.3.1" date="2026-10-20">
+      <description>
+        <p>Unfinished downloads are kept in a temp subfolder of the download folder and moved in when complete. The
+        app checks GitHub for new versions; on Windows it can install them itself.</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-10-20">
       <description>
         <p>Download all links on a page from the browser extension, and choose the video quality (up to 4K, or audio

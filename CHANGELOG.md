@@ -6,11 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-20
+
 ### Added
 - Update check: the app looks for a newer GitHub release shortly after start and once a day (can be turned off in
   Settings → Updates), and from the menu with "Check for updates". A banner shows the new version. On Windows,
   "Update now" downloads the installer from the release, checks its SHA-256 against the one GitHub records,
   installs it silently and reopens Kara DM. On Linux the banner opens the release page.
+  Versions before 0.3.1 do not have this yet, so install 0.3.1 itself manually once.
 
 ### Changed
 - Unfinished downloads are kept in a `temp` subfolder of the download folder (including aria2 `.aria2` control
@@ -69,6 +72,7 @@ First public release.
   yt-dlp, DASH merge via ffmpeg, POST downloads via curl, progress window with segment bar, history and
   categories.
 
-[Unreleased]: https://github.com/kamisama-v0/kara-dm/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kamisama-v0/kara-dm/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/kamisama-v0/kara-dm/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/kamisama-v0/kara-dm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kamisama-v0/kara-dm/releases/tag/v0.2.0
