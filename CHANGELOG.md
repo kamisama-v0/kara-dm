@@ -6,18 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-20
+
 ### Added
-- Browser extension 0.1.4: "Download all links" page (from the popup or the page context menu) that lists the
-  page's links grouped by file type (video, audio, images, documents, archives, programs) with search and
-  checkboxes, and sends the chosen files to the app in one go.
-- Video quality choice (best, 2160p down to 360p, or audio only) for page videos, HLS and DASH, in the popup, the
-  video button menu and the options; the app passes it to yt-dlp.
-- The app accepts two extension-only protocol keys: `10` (yt-dlp quality) and `11` (part of a batch, so no
-  progress window or notification per file). Neat Download Manager ignores them.
+- "Download all links" in the browser extension (popup or page context menu): lists the page's links grouped by
+  file type (video, audio, images, documents, archives, programs) with search and checkboxes, and sends the chosen
+  files to the app in one go, without a progress window per file.
+- Video quality choice for page videos (YouTube, Vimeo, …), HLS and DASH: best, 2160p down to 360p, or audio only.
+  Set it in the extension popup, the video button menu or the options; the app passes it to yt-dlp.
+- Two extension-only protocol keys: `10` (yt-dlp quality) and `11` (part of a batch). Neat Download Manager
+  ignores them, and older Kara DM versions keep downloading at the best quality.
+- The Firefox extension is published on addons.mozilla.org; each release submits the new extension version for
+  review.
 
 ### Changed
-- Browser extension 0.1.3: first listed (public) version on addons.mozilla.org; same code as 0.1.2.
-- Release workflow submits the Firefox extension to addons.mozilla.org (listed) when the AMO API key secrets are set.
+- Browser extension 0.1.4.
+
+### Fixed
+- Extension popup rows that should be hidden (such as "turn off on this site" on non-web pages) are hidden again.
 
 ## [0.2.0] - 2026-10-20
 
@@ -47,5 +53,6 @@ First public release.
   yt-dlp, DASH merge via ffmpeg, POST downloads via curl, progress window with segment bar, history and
   categories.
 
-[Unreleased]: https://github.com/kamisama-v0/kara-dm/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kamisama-v0/kara-dm/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kamisama-v0/kara-dm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kamisama-v0/kara-dm/releases/tag/v0.2.0
