@@ -29,7 +29,6 @@ CloseApplications=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "indonesian"; MessagesFile: "compiler:Languages\Indonesian.isl"
 
 [Tasks]
 Name: "autostart"; Description: "Run at sign-in (catch downloads from the browser) / Jalankan saat login"; Flags: checkedonce
