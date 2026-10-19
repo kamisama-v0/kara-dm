@@ -63,10 +63,8 @@ push tag.
 **Firefox** (rilis wajib bertanda tangan Mozilla): tanda tangani sebagai *unlisted* (tidak tampil di AMO,
 gratis, otomatis):
 1. Buat API key di https://addons.mozilla.org/developers/addon/api/key/ (login akun Firefox sendiri).
-2. `./sign-firefox.sh` (meminta JWT issuer + secret, build, tanda tangani, buka .xpi di Firefox)
-   (key jangan disimpan di repo).
-3. Buka `.xpi` hasilnya (folder `web-ext-artifacts/`) di Firefox → *Add*.
-Versi baru: naikkan `version` di `manifest.base.json`, build, tanda tangani lagi.
+2. `./release-firefox.sh` (meminta JWT issuer + secret, build, tanda tangani, buka .xpi di Firefox → *Add*);
+   key tidak disimpan. Untuk rilis publik (listed) lihat job `amo` di atas.
 
 Untuk coba tanpa tanda tangan: `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* →
 `dist/firefox/manifest.json` (hilang saat Firefox ditutup).
