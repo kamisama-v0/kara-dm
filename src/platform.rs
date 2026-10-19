@@ -106,10 +106,9 @@ pub fn tool(name: &str) -> Command {
 }
 
 pub fn has_tool(name: &str) -> bool {
-    #[cfg(windows)]
-    let name = format!("{name}.exe");
-    let local = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(name)));
-    local.is_some_and(|p| p.exists()) || glib::find_program_in_path(name).is_some()
+    let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
+    let local = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(&file)));
+    local.is_some_and(|p| p.exists()) || glib::find_program_in_path(&file).is_some()
 }
 
 fn firefox_version() -> Option<String> {
