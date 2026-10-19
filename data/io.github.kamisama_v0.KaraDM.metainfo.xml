@@ -32,7 +32,7 @@
     <control>keyboard</control>
   </supports>
   <releases>
-    <release version="0.2.0" date="2026-10-19">
+    <release version="0.2.0" date="2026-10-20">
       <description>
         <p>First public release: Linux (Flatpak) and Windows builds, new logo, Kara DM browser extension.</p>
       </description>
