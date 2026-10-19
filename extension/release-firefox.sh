@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 ver=$(node -p 'require("./manifest.base.json").version')
-node --test test/ >/dev/null
+node --test test/*.test.js >/dev/null
 node build.mjs >/dev/null
 if ls web-ext-artifacts/*-"$ver".xpi >/dev/null 2>&1; then
   # AMO menolak versi yang sama dua kali (409); pakai .xpi yang sudah ditandatangani.

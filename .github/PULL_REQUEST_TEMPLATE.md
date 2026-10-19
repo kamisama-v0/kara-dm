@@ -5,7 +5,7 @@
 ## Checklist
 
 - [ ] `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` pass
-- [ ] Extension changes: `node --test test/` and `web-ext lint` pass
+- [ ] Extension changes: `node --test test/*.test.js` and `web-ext lint` pass
 - [ ] Tests added/updated for new logic
 - [ ] `CHANGELOG.md` updated under **Unreleased**
 - [ ] Protocol changes documented in `docs/PROTOCOL.md` and still compatible with the NDM extension

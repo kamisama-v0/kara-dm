@@ -38,7 +38,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test test/
+      - run: node --test test/*.test.js
       - run: node build.mjs
       - name: Lint (aturan addons.mozilla.org)
         run: npx -y web-ext@8 lint -s dist/firefox --warnings-as-errors

@@ -33,7 +33,7 @@ memakai kode ekstensi NDM.
 ## Build & tes
 
 ```bash
-node --test test/
+node --test test/*.test.js
 node build.mjs                      # -> dist/firefox, dist/chromium
 npx web-ext lint -s dist/firefox    # validasi aturan AMO
 ```

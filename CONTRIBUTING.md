@@ -71,7 +71,7 @@ flatpak run io.github.kamisama_v0.KaraDM
 
 ```bash
 cd extension
-node --test test/          # unit tests (no browser needed)
+node --test test/*.test.js          # unit tests (no browser needed)
 node build.mjs             # -> dist/firefox, dist/chromium
 npx web-ext@8 run -s dist/firefox    # try it in a temporary Firefox profile
 ```
@@ -86,7 +86,7 @@ CI runs the same checks; please run them locally:
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
-(cd extension && node --test test/ && node build.mjs && npx -y web-ext@8 lint -s dist/firefox)
+(cd extension && node --test test/*.test.js && node build.mjs && npx -y web-ext@8 lint -s dist/firefox)
 ```
 
 Guidelines:

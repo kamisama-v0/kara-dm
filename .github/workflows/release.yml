@@ -94,7 +94,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test test/ && node build.mjs
+      - run: node --test test/*.test.js && node build.mjs
       - name: Zip
         run: |
           v=$(node -p 'require("./manifest.base.json").version')
