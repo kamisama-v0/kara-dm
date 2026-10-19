@@ -19,6 +19,7 @@ mod model;
 mod platform;
 mod protocol;
 mod ui;
+mod update;
 mod ws;
 
 use adw::prelude::*;
@@ -50,6 +51,13 @@ pub enum Event {
     },
     /// Argumen dari peluncuran kedua (Windows, lihat instance.rs).
     Remote(Vec<String>),
+    /// Hasil cek rilis GitHub; `manual` = dari menu "Periksa pembaruan" (hasil apa pun ditampilkan).
+    UpdateChecked {
+        result: Result<update::Release, String>,
+        manual: bool,
+    },
+    /// Installer pembaruan selesai diunduh dan diverifikasi (Windows).
+    UpdateDownloaded(Result<PathBuf, String>),
 }
 
 pub struct App {
@@ -68,6 +76,9 @@ pub struct App {
     jobs: RefCell<HashMap<String, jobs::Slot>>,
     dirty: Cell<bool>,
     hold: RefCell<Option<gio::ApplicationHoldGuard>>,
+    /// Rilis yang lebih baru dari versi ini, bila ada.
+    pub update: RefCell<Option<update::Release>>,
+    updating: Cell<bool>,
 }
 
 const STATUS_KEYS: [&str; 9] = [
@@ -212,6 +223,8 @@ impl App {
             jobs: RefCell::default(),
             dirty: Cell::new(false),
             hold: RefCell::new(Some(gapp.hold())),
+            update: RefCell::default(),
+            updating: Cell::new(false),
         });
         for e in [&app.aria_error, &app.ws_error].into_iter().flatten() {
             eprintln!("kara-dm: {e}");
@@ -232,6 +245,18 @@ impl App {
                     app.save_history();
                 }
                 glib::ControlFlow::Continue
+            });
+        }
+        // Cek pembaruan sebentar setelah mulai (jangan memperlambat login), lalu sehari sekali: aplikasi biasanya
+        // berjalan terus di latar belakang.
+        {
+            let app = app.clone();
+            glib::timeout_add_seconds_local_once(30, move || {
+                app.auto_check_update();
+                glib::timeout_add_seconds_local(24 * 3600, move || {
+                    app.auto_check_update();
+                    glib::ControlFlow::Continue
+                });
             });
         }
         let quit = gio::SimpleAction::new("quit", None);
@@ -300,6 +325,7 @@ impl App {
         let w = ui::MainWindow::build(self);
         *self.ui.borrow_mut() = Some(w.clone());
         self.refresh_summary();
+        w.show_update(self);
         w
     }
 
@@ -341,7 +367,100 @@ impl App {
             }
             Event::JobDone { id, result } => self.job_done(&id, result),
             Event::Remote(args) => self.run_args(args),
+            Event::UpdateChecked { result, manual } => self.update_checked(result, manual),
+            Event::UpdateDownloaded(result) => self.update_downloaded(result),
         }
+    }
+
+    // ---------- pembaruan ----------
+
+    fn auto_check_update(self: &Rc<Self>) {
+        if self.settings.borrow().check_updates {
+            self.check_update(false);
+        }
+    }
+
+    pub fn check_update(self: &Rc<Self>, manual: bool) {
+        let (tx, ua) = (self.tx.clone(), self.ua.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send_blocking(Event::UpdateChecked { result: update::fetch_latest(&ua), manual });
+        });
+    }
+
+    fn update_checked(self: &Rc<Self>, result: Result<update::Release, String>, manual: bool) {
+        let current = env!("CARGO_PKG_VERSION");
+        match result {
+            Ok(r) if update::is_newer(&r.version, current) => {
+                let first_notice = self.settings.borrow().notified_version != r.version;
+                if !manual && first_notice {
+                    self.notify("Pembaruan Kara DM tersedia", &format!("Versi {} siap dipasang.", r.version), None);
+                    let mut s = self.settings.borrow().clone();
+                    s.notified_version = r.version.clone();
+                    let _ = s.save(&self.paths.settings);
+                    *self.settings.borrow_mut() = s;
+                }
+                *self.update.borrow_mut() = Some(r);
+                if let Some(w) = self.ui.borrow().clone() {
+                    w.show_update(self);
+                }
+                if manual {
+                    self.window().win.present();
+                }
+            }
+            Ok(_) if manual => self.message("Kara DM sudah versi terbaru", &format!("Versi terpasang: {current}")),
+            Ok(_) => {}
+            Err(e) if manual => self.message("Gagal memeriksa pembaruan", &e),
+            Err(e) => eprintln!("kara-dm: cek pembaruan: {e}"),
+        }
+    }
+
+    fn message(self: &Rc<Self>, title: &str, body: &str) {
+        let w = self.window();
+        w.win.present();
+        let d = adw::AlertDialog::new(Some(title), Some(body));
+        d.add_response("ok", "OK");
+        d.present(Some(&w.win));
+    }
+
+    /// Tombol "Perbarui" di spanduk. Windows: unduh installer dan pasang; lainnya: buka halaman rilis.
+    pub fn start_update(self: &Rc<Self>) {
+        let Some(r) = self.update.borrow().clone() else { return };
+        let installer = r.installer.clone().filter(|_| cfg!(windows));
+        let Some(asset) = installer else {
+            let _ = gio::AppInfo::launch_default_for_uri(&r.page, None::<&gio::AppLaunchContext>);
+            return;
+        };
+        if self.updating.replace(true) {
+            return;
+        }
+        if let Some(w) = self.ui.borrow().clone() {
+            w.show_update(self);
+        }
+        // Folder temp unduhan: drive pilihan pengguna, bukan C: yang mungkin penuh.
+        let (tx, ua, dir) = (self.tx.clone(), self.ua.clone(), self.settings.borrow().dir().join(TEMP_DIR));
+        std::thread::spawn(move || {
+            let _ = tx.send_blocking(Event::UpdateDownloaded(update::download(&asset, &dir, &ua)));
+        });
+    }
+
+    fn update_downloaded(self: &Rc<Self>, result: Result<PathBuf, String>) {
+        let res = result.and_then(|p| update::launch_installer(&p));
+        match res {
+            // Keluar seperti menu "Keluar" (riwayat & sesi aria2 disimpan) agar installer bisa mengganti berkas;
+            // installer membuka Kara DM lagi setelah selesai.
+            Ok(()) => self.gapp.quit(),
+            Err(e) => {
+                self.updating.set(false);
+                if let Some(w) = self.ui.borrow().clone() {
+                    w.show_update(self);
+                }
+                self.message("Pembaruan gagal", &e);
+            }
+        }
+    }
+
+    pub fn is_updating(&self) -> bool {
+        self.updating.get()
     }
 
     // ---------- menambah & menjalankan unduhan ----------

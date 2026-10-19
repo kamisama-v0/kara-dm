@@ -54,6 +54,10 @@ pub struct Settings {
     pub notify: bool,
     /// Permintaan autostart Flatpak (portal Background) sudah pernah dikirim.
     pub autostart_asked: bool,
+    /// Cek rilis baru di GitHub saat mulai dan sehari sekali.
+    pub check_updates: bool,
+    /// Versi terakhir yang sudah diberitahukan lewat notifikasi (tidak diulang tiap kali aplikasi mulai).
+    pub notified_version: String,
 }
 
 impl Default for Settings {
@@ -67,6 +71,8 @@ impl Default for Settings {
             media_panel: true,
             notify: true,
             autostart_asked: false,
+            check_updates: true,
+            notified_version: String::new(),
         }
     }
 }

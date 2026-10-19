@@ -100,6 +100,7 @@ pub struct MainWindow {
     speed: gtk::Label,
     ext: gtk::Label,
     category: Rc<RefCell<&'static str>>,
+    update: adw::Banner,
 }
 
 fn matches(cat: &str, it: &Item) -> bool {
@@ -143,6 +144,7 @@ impl MainWindow {
         menu.append(Some("Buka folder unduhan"), Some("win.open-dir"));
         menu.append(Some("Bersihkan yang selesai dari daftar"), Some("win.clear-finished"));
         menu.append(Some("Pengaturan"), Some("win.settings"));
+        menu.append(Some("Periksa pembaruan"), Some("win.check-update"));
         menu.append(Some("Tentang"), Some("win.about"));
         menu.append(Some("Keluar (berhenti menangkap unduhan)"), Some("app.quit"));
         hb.pack_end(&gtk::MenuButton::builder().icon_name("open-menu-symbolic").menu_model(&menu).build());
@@ -233,8 +235,14 @@ impl MainWindow {
             bottom.append(l);
         }
 
+        let update = adw::Banner::new("");
+        {
+            let a = app.clone();
+            update.connect_button_clicked(move |_| a.start_update());
+        }
         let tv = adw::ToolbarView::new();
         tv.add_top_bar(&hb);
+        tv.add_top_bar(&update);
         tv.add_bottom_bar(&bottom);
         tv.set_content(Some(&paned));
         win.set_content(Some(&tv));
@@ -270,6 +278,7 @@ impl MainWindow {
             speed,
             ext,
             category,
+            update,
         });
 
         // Aksi.
@@ -330,6 +339,8 @@ impl MainWindow {
         add_action(&win, "clear-finished", move || a.clear_finished());
         let a = app.clone();
         add_action(&win, "settings", move || a.show_settings());
+        let a = app.clone();
+        add_action(&win, "check-update", move || a.check_update(true));
         let w = win.clone();
         add_action(&win, "about", move || {
             adw::AboutDialog::builder()
@@ -419,6 +430,25 @@ impl MainWindow {
     pub fn refilter(&self) {
         let _ = &self.category;
         self.list.invalidate_filter();
+    }
+
+    /// Spanduk "pembaruan tersedia" di bawah toolbar, mengikuti `app.update`.
+    pub fn show_update(&self, app: &App) {
+        let Some(r) = app.update.borrow().clone() else {
+            self.update.set_revealed(false);
+            return;
+        };
+        let installs = cfg!(windows) && r.installer.is_some();
+        let (title, button) = if app.is_updating() {
+            (format!("Mengunduh Kara DM {}… Aplikasi akan dibuka ulang setelah dipasang.", r.version), "")
+        } else if installs {
+            (format!("Kara DM {} tersedia.", r.version), "Perbarui sekarang")
+        } else {
+            (format!("Kara DM {} tersedia.", r.version), "Lihat rilis")
+        };
+        self.update.set_title(&title);
+        self.update.set_button_label(Some(button).filter(|b| !b.is_empty()));
+        self.update.set_revealed(true);
     }
 
     pub fn refresh_summary(
@@ -742,6 +772,19 @@ pub fn settings_dialog(app: &Rc<App>, parent: &impl IsA<gtk::Widget>) {
     ext_row.add_suffix(&open);
     g2.add(&ext_row);
     page.add(&g2);
+
+    let g3 = adw::PreferencesGroup::builder().title("Pembaruan").build();
+    let updates = adw::SwitchRow::builder()
+        .title("Periksa pembaruan otomatis")
+        .subtitle(if cfg!(windows) {
+            "Cek rilis baru di GitHub sehari sekali; pemasangan tetap menunggu persetujuan Anda"
+        } else {
+            "Cek rilis baru di GitHub sehari sekali dan beri tahu bila ada"
+        })
+        .active(s.check_updates)
+        .build();
+    g3.add(&updates);
+    page.add(&g3);
     dialog.add(&page);
 
     let a = app.clone();
@@ -754,6 +797,7 @@ pub fn settings_dialog(app: &Rc<App>, parent: &impl IsA<gtk::Widget>) {
         n.show_progress_window = prog.is_active();
         n.media_panel = panel.is_active();
         n.notify = notify.is_active();
+        n.check_updates = updates.is_active();
         a.apply_settings(n);
     });
     dialog.present(Some(parent));

@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Update check: the app looks for a newer GitHub release shortly after start and once a day (can be turned off in
+  Settings → Updates), and from the menu with "Check for updates". A banner shows the new version. On Windows,
+  "Update now" downloads the installer from the release, checks its SHA-256 against the one GitHub records,
+  installs it silently and reopens Kara DM. On Linux the banner opens the release page.
+
 ### Changed
 - Unfinished downloads are kept in a `temp` subfolder of the download folder (including aria2 `.aria2` control
   files, yt-dlp `.part` files and DASH parts) and moved into the download folder when complete, renamed

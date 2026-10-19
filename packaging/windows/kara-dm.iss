@@ -45,6 +45,8 @@ Name: "{userstartup}\Kara Download Manager"; Filename: "{app}\kara-dm.exe"; Para
 
 [Run]
 Filename: "{app}\kara-dm.exe"; Parameters: "--service"; Flags: nowait postinstall skipifsilent; Description: "Start Kara Download Manager"
+; Pembaruan dari dalam aplikasi (installer dijalankan /SILENT): buka lagi jendela Kara DM setelah dipasang.
+Filename: "{app}\kara-dm.exe"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{app}\kara-dm.exe"; Parameters: "--quit"; Flags: runhidden skipifdoesntexist; RunOnceId: "QuitKaraDM"
