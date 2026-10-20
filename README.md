@@ -53,8 +53,8 @@ Download from the [latest release](https://github.com/kamisama-v0/kara-dm/releas
 - `kara-dm-<version>-windows-x64-portable.zip` — unzip anywhere and run `kara-dm.exe`.
 
 Windows SmartScreen may warn because the binaries are not code-signed yet: choose **More info → Run anyway**.
-To merge separate video and audio streams, also install ffmpeg (`winget install Gyan.FFmpeg`).
-Neat Download Manager and kara-dm both use port 10007, so run only one of them.
+aria2, yt-dlp and ffmpeg are bundled. Neat Download Manager and kara-dm both use port 10007; if Neat is still
+running, kara-dm takes the port over as soon as Neat is closed.
 
 ### Linux
 

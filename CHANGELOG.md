@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- yt-dlp downloads (YouTube and other page videos) are named after the video's own title plus the resolution
+  actually downloaded, e.g. `Title [1080p].webm` or `Title [audio].webm`; the name shows in the list as soon as
+  the format is chosen.
+- Windows: FFmpeg 8.1.3 (LGPL build) is bundled in `ffmpeg\`, so YouTube video and audio are merged into one file.
+
+### Fixed
+- Windows: YouTube videos above 360p were saved as two separate files (`.fNNN.mp4` video and `.fNNN.webm` audio)
+  because ffmpeg was missing.
+- Windows: clicking the Kara DM icon while it runs in the background opened the window behind other windows.
+- When port 10007 was still in use at start (e.g. Neat Download Manager), the browser extension never connected
+  and every download was left to the browser; Kara DM now retries every 5 seconds and takes the port over once
+  it is free.
+
 ## [0.3.1] - 2026-10-20
 
 ### Added

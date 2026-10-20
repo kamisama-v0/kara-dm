@@ -38,9 +38,9 @@ setelah koneksi putus atau komputer restart, dan mengambil alih unduhan dari bro
 
 **Windows 10/11 (beta)** — dari [rilis terbaru](https://github.com/kamisama-v0/kara-dm/releases/latest):
 `…-windows-x64-setup.exe` (tanpa hak admin, ada opsi jalan saat login) atau `…-windows-x64-portable.zip`.
-SmartScreen bisa memperingatkan karena biner belum ditandatangani: **More info → Run anyway**. Untuk
-menggabungkan video + audio terpisah pasang ffmpeg (`winget install Gyan.FFmpeg`). Jangan jalankan bersamaan
-dengan Neat Download Manager (sama-sama memakai port 10007).
+SmartScreen bisa memperingatkan karena biner belum ditandatangani: **More info → Run anyway**. aria2, yt-dlp
+dan ffmpeg sudah dibundel. Neat Download Manager memakai port yang sama (10007); kalau masih jalan, Kara DM
+mengambil alih portnya begitu Neat ditutup.
 
 **Linux (Flatpak)** — unduh `kara-dm-linux-x86_64.flatpak`, lalu:
 

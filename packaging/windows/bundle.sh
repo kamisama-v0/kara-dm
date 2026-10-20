@@ -19,6 +19,13 @@ else
   cp "$prefix/bin/aria2c.exe" "$out/"
 fi
 [[ -f dist/windows/yt-dlp.exe ]] && cp dist/windows/yt-dlp.exe "$out/"
+# FFmpeg (build LGPL shared BtbN, diunduh workflow) di subfolder sendiri: yt-dlp memakainya untuk menggabung
+# video + audio YouTube, Kara DM untuk DASH. ffplay tidak dibawa.
+if [[ -d dist/windows/ffmpeg ]]; then
+  mkdir -p "$out/ffmpeg" "$out/licenses/ffmpeg"
+  cp dist/windows/ffmpeg/bin/{ffmpeg,ffprobe}.exe dist/windows/ffmpeg/bin/*.dll "$out/ffmpeg/"
+  cp dist/windows/ffmpeg/LICENSE.txt "$out/licenses/ffmpeg/"
+fi
 
 # gdk-pixbuf (PNG/SVG untuk ikon)
 loaders=lib/gdk-pixbuf-2.0/2.10.0

@@ -10,10 +10,9 @@ not to Kara Download Manager.
 | --- | --- | --- | --- |
 | [aria2](https://aria2.github.io/) 1.37.0 | download engine (run as a separate process, JSON-RPC on 127.0.0.1). Windows: the official `aria2-1.37.0-win-64bit-build1` binary, its license files are in `licenses/aria2/` | GPL-2.0-or-later with OpenSSL exception | <https://github.com/aria2/aria2/releases/tag/release-1.37.0> |
 | [yt-dlp](https://github.com/yt-dlp/yt-dlp) 2026.08.19 | HLS/DASH streams and "this page's video" | Unlicense | <https://github.com/yt-dlp/yt-dlp/releases/tag/2026.08.19> |
-| [FFmpeg](https://ffmpeg.org/) 8.1.3 (Flatpak only) | merging video + audio streams | LGPL-2.1-or-later (built without `--enable-gpl`) | <https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz> |
+| [FFmpeg](https://ffmpeg.org/) 8.1.3 | merging video + audio streams (YouTube via yt-dlp, DASH). Flatpak: built from source. Windows: the [BtbN](https://github.com/BtbN/FFmpeg-Builds) LGPL shared build `ffmpeg-n8.1.3-18-g46d899d7a0-win64-lgpl-shared-8.1` (release `autobuild-2026-10-19-13-06`) in `ffmpeg\`, license in `licenses/ffmpeg/` | LGPL-2.1-or-later (built without `--enable-gpl`) | <https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz>, <https://github.com/FFmpeg/FFmpeg/commit/46d899d7a0>, build scripts <https://github.com/BtbN/FFmpeg-Builds> |
 
-On Windows, ffmpeg is not bundled; install it separately (e.g. `winget install Gyan.FFmpeg`) to merge
-separate video/audio streams. `curl.exe` comes with Windows 10 and later.
+`curl.exe` comes with Windows 10 and later.
 
 ## Libraries (dynamically linked)
 

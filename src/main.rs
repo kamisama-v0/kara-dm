@@ -639,6 +639,11 @@ impl App {
             "--user-agent",
         ]);
         cmd.arg(&self.ua);
+        // FFmpeg dibundel di Windows (subfolder ffmpeg\): tanpanya yt-dlp tidak bisa menggabung video + audio
+        // YouTube dan meninggalkan dua berkas .fNNN terpisah.
+        if let Some(dir) = platform::bundled_tool("ffmpeg").and_then(|p| p.parent().map(Path::to_path_buf)) {
+            cmd.arg("--ffmpeg-location").arg(dir);
+        }
         cmd.args(protocol::ytdlp_format_args(&it.quality));
         let mut temp = vec![];
         for (k, v) in &it.headers {

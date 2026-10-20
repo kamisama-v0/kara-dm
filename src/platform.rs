@@ -86,15 +86,23 @@ pub fn create_private_file(p: &Path) -> io::Result<fs::File> {
     o.open(p)
 }
 
-/// Perintah untuk alat bantu (aria2c, yt-dlp, ffmpeg, curl). Di Windows dipakai salinan yang dibundel di samping
-/// kara-dm.exe bila ada, dan tidak memunculkan jendela konsol.
+/// Salinan alat bantu yang dibundel di samping kara-dm.exe, atau di subfolder bernama sama (FFmpeg: `ffmpeg\`
+/// berisi ffmpeg.exe, ffprobe.exe dan DLL-nya, terpisah dari DLL GTK).
+pub fn bundled_tool(name: &str) -> Option<PathBuf> {
+    let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
+    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let sub = if name == "ffprobe" { "ffmpeg" } else { name };
+    [dir.join(&file), dir.join(sub).join(&file)].into_iter().find(|p| p.is_file())
+}
+
+/// Perintah untuk alat bantu (aria2c, yt-dlp, ffmpeg, curl). Di Windows dipakai salinan yang dibundel bila ada,
+/// dan tidak memunculkan jendela konsol.
 pub fn tool(name: &str) -> Command {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let bundled = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(format!("{name}.exe"))));
-        let mut c = match bundled.filter(|p| p.exists()) {
+        let mut c = match bundled_tool(name) {
             Some(p) => Command::new(p),
             None => Command::new(name),
         };
@@ -107,8 +115,7 @@ pub fn tool(name: &str) -> Command {
 
 pub fn has_tool(name: &str) -> bool {
     let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
-    let local = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(&file)));
-    local.is_some_and(|p| p.exists()) || glib::find_program_in_path(&file).is_some()
+    bundled_tool(name).is_some() || glib::find_program_in_path(&file).is_some()
 }
 
 fn firefox_version() -> Option<String> {
