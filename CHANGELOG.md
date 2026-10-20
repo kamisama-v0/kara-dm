@@ -13,6 +13,12 @@ All notable changes to this project are documented here. The format follows
 - Windows: FFmpeg 8.1.3 (LGPL build) is bundled in `ffmpeg\`, so YouTube video and audio are merged into one file.
 
 ### Fixed
+- Google Drive downloads of large files ended "complete" as a 2 KB `download` page. The browser extension (0.1.5)
+  now passes the exact Cookie header the browser sent for the download, and otherwise only that site's
+  first-party cookies; it used to mix in partitioned copies of Google's cookies from other sites, so Google saw a
+  different session and refused the one-time download token. If Drive still answers with its virus-scan warning,
+  Kara DM follows the page's form with the fresh token; other Drive pages (e.g. "Quota exceeded") now show as a
+  failed download with Google's message instead of a saved HTML file.
 - Windows: YouTube videos above 360p were saved as two separate files (`.fNNN.mp4` video and `.fNNN.webm` audio)
   because ffmpeg was missing.
 - Windows: clicking the Kara DM icon while it runs in the background opened the window behind other windows.
