@@ -1,71 +1,49 @@
-//! Perbedaan antar-OS dikumpulkan di sini: folder aplikasi, berkas privat, alat bantu eksternal, notifikasi.
-//! Folder diambil dari GLib (XDG di Linux/Flatpak, %LOCALAPPDATA% di Windows).
+//! Perbedaan antar-OS dikumpulkan di sini: folder aplikasi, berkas privat, alat bantu eksternal, notifikasi,
+//! membuka berkas/folder. Folder mengikuti aturan GLib versi sebelumnya (variabel XDG_* bila diset, selain itu
+//! XDG di Linux dan %LOCALAPPDATA% di Windows), jadi pengaturan dan riwayat lama tetap terbaca.
 
-use gtk::prelude::*;
-use gtk::{gio, glib};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn home() -> PathBuf {
-    glib::home_dir()
+    dirs::home_dir().unwrap_or_default()
 }
 
 /// Folder Downloads milik sistem (mengikuti nama lokal, mis. ~/Unduhan), jatuh ke ~/Downloads.
 pub fn downloads_dir() -> PathBuf {
-    glib::user_special_dir(glib::UserDirectory::Downloads).unwrap_or_else(|| home().join("Downloads"))
+    dirs::download_dir().unwrap_or_else(|| home().join("Downloads"))
+}
+
+fn xdg(var: &str, fallback: Option<PathBuf>) -> PathBuf {
+    std::env::var_os(var).filter(|v| !v.is_empty()).map(PathBuf::from).or(fallback).unwrap_or_else(home)
 }
 
 pub fn config_dir() -> PathBuf {
-    glib::user_config_dir().join("kara-dm")
+    xdg("XDG_CONFIG_HOME", if cfg!(windows) { dirs::data_local_dir() } else { dirs::config_dir() }).join("kara-dm")
 }
 
 pub fn data_dir() -> PathBuf {
-    glib::user_data_dir().join("kara-dm")
+    xdg("XDG_DATA_HOME", dirs::data_local_dir()).join("kara-dm")
 }
 
 pub fn cache_dir() -> PathBuf {
-    glib::user_cache_dir().join("kara-dm")
+    xdg("XDG_CACHE_HOME", dirs::cache_dir()).join("kara-dm")
 }
 
 /// Tempat berkas sesaat (conf aria2 berisi token, cookie untuk yt-dlp). Linux: $XDG_RUNTIME_DIR (tmpfs, 0700).
 pub fn runtime_dir() -> PathBuf {
-    glib::user_runtime_dir().join("kara-dm")
+    std::env::var_os("XDG_RUNTIME_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(dirs::runtime_dir)
+        .map(|d| d.join("kara-dm"))
+        .unwrap_or_else(cache_dir)
 }
 
 pub fn in_flatpak() -> bool {
     Path::new("/.flatpak-info").exists()
-}
-
-/// Di Flatpak, minta izin jalan di latar + autostart saat login lewat portal Background (pengguna yang memutuskan
-/// di dialog sistem). Di luar Flatpak autostart diatur installer (systemd user / Startup Windows).
-pub fn request_flatpak_autostart() {
-    if !in_flatpak() {
-        return;
-    }
-    let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else { return };
-    let opts = glib::VariantDict::new(None);
-    opts.insert_value("reason", &"Catching browser downloads since sign-in".to_variant());
-    opts.insert_value("autostart", &true.to_variant());
-    opts.insert_value("commandline", &vec!["kara-dm".to_string(), "--service".to_string()].to_variant());
-    let params = glib::Variant::tuple_from_iter(["".to_variant(), opts.end()]);
-    bus.call(
-        Some("org.freedesktop.portal.Desktop"),
-        "/org/freedesktop/portal/desktop",
-        "org.freedesktop.portal.Background",
-        "RequestBackground",
-        Some(&params),
-        None,
-        gio::DBusCallFlags::NONE,
-        -1,
-        gio::Cancellable::NONE,
-        |r| {
-            if let Err(e) = r {
-                eprintln!("kara-dm: portal Background: {e}");
-            }
-        },
-    );
 }
 
 /// Folder yang hanya bisa dibaca pemiliknya (0700 di Unix; di Windows profil pengguna sudah ber-ACL per user).
@@ -87,7 +65,7 @@ pub fn create_private_file(p: &Path) -> io::Result<fs::File> {
 }
 
 /// Salinan alat bantu yang dibundel di samping kara-dm.exe, atau di subfolder bernama sama (FFmpeg: `ffmpeg\`
-/// berisi ffmpeg.exe, ffprobe.exe dan DLL-nya, terpisah dari DLL GTK).
+/// berisi ffmpeg.exe, ffprobe.exe dan DLL-nya).
 pub fn bundled_tool(name: &str) -> Option<PathBuf> {
     let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
     let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
@@ -113,9 +91,13 @@ pub fn tool(name: &str) -> Command {
     Command::new(name)
 }
 
+fn in_path(file: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|paths| std::env::split_paths(&paths).any(|d| d.join(file).is_file()))
+}
+
 pub fn has_tool(name: &str) -> bool {
     let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
-    bundled_tool(name).is_some() || glib::find_program_in_path(&file).is_some()
+    bundled_tool(name).is_some() || in_path(&file)
 }
 
 fn firefox_version() -> Option<String> {
@@ -146,9 +128,9 @@ fn spawn_quiet(mut cmd: Command) -> bool {
     }
 }
 
-/// Notifikasi desktop. Omarchy punya pembantu sendiri (bisa membuka folder saat diklik); selain itu GNotification
-/// (portal di Flatpak, Shell di GNOME/KDE, Windows).
-pub fn notify(app: &gio::Application, title: &str, body: &str, open_dir: Option<&str>) {
+/// Notifikasi desktop. Omarchy punya pembantu sendiri (bisa membuka folder saat diklik); selain itu notifikasi
+/// sistem (D-Bus di Linux, toast di Windows). Dikirim dari thread terpisah agar tidak menahan antarmuka.
+pub fn notify(title: &str, body: &str, open_dir: Option<&str>) {
     #[cfg(unix)]
     if !in_flatpak() && has_tool("omarchy-notification-send") {
         let mut cmd = Command::new("omarchy-notification-send");
@@ -160,10 +142,23 @@ pub fn notify(app: &gio::Application, title: &str, body: &str, open_dir: Option<
             return;
         }
     }
-    let n = gio::Notification::new(title);
-    n.set_body(Some(body));
-    if let Some(d) = open_dir {
-        n.set_default_action_and_target_value("app.open-path", Some(&d.to_variant()));
+    let _ = open_dir;
+    let (title, body) = (title.to_string(), body.to_string());
+    std::thread::spawn(move || {
+        let _ = notify_rust::Notification::new().appname("Kara Download Manager").summary(&title).body(&body).show();
+    });
+}
+
+/// Buka berkas atau alamat dengan program bawaan sistem.
+pub fn open(target: impl AsRef<std::ffi::OsStr>) {
+    if let Err(e) = opener::open(target) {
+        eprintln!("kara-dm: open: {e}");
     }
-    app.send_notification(None, &n);
+}
+
+/// Buka folder berisi berkas itu dengan berkasnya terpilih.
+pub fn reveal(path: &Path) {
+    if opener::reveal(path).is_err() {
+        open(path.parent().unwrap_or(path));
+    }
 }

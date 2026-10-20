@@ -33,22 +33,10 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: msys2 {0}
+        shell: bash
     steps:
       - uses: actions/checkout@v4
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            zip
-            mingw-w64-ucrt-x86_64-rust
-            mingw-w64-ucrt-x86_64-pkgconf
-            mingw-w64-ucrt-x86_64-gtk4
-            mingw-w64-ucrt-x86_64-libadwaita
-            mingw-w64-ucrt-x86_64-librsvg
-            mingw-w64-ucrt-x86_64-adwaita-icon-theme
-            unzip
+      # Antarmuka iced: cukup toolchain Rust MSVC bawaan runner, tanpa MSYS2/GTK.
       - name: Build
         run: cargo build --release --locked
       - name: yt-dlp.exe (rilis resmi, checksum diverifikasi)
@@ -71,7 +59,7 @@ jobs:
           unzip -q ffmpeg.zip && mkdir -p dist/windows && mv "$name" dist/windows/ffmpeg
       - name: Bundle
         run: bash packaging/windows/bundle.sh
-      - name: Self-test bundel (tanpa MSYS2 di PATH)
+      - name: Self-test bundel (PATH minimal)
         shell: pwsh
         run: |
           $env:PATH = "C:\Windows\System32;C:\Windows"
@@ -80,9 +68,10 @@ jobs:
           Get-Content selftest.txt
           if ($p.ExitCode -ne 0) { throw "selftest gagal: $($p.ExitCode)" }
       - name: Portable zip
+        shell: pwsh
         run: |
-          v="${GITHUB_REF_NAME#v}"
-          cd dist/windows && zip -qr "kara-dm-$v-windows-x64-portable.zip" kara-dm
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          Compress-Archive -Path dist\windows\kara-dm -DestinationPath "dist\windows\kara-dm-$v-windows-x64-portable.zip"
       - name: Installer (Inno Setup)
         shell: pwsh
         run: |

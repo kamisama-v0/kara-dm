@@ -1,7 +1,5 @@
-//! Satu instance di Windows. Di Linux GApplication memakai D-Bus untuk ini; Windows tidak punya session bus,
-//! jadi instance pertama membuka 127.0.0.1:10008 dan peluncuran berikutnya (shortcut, `kara-dm URL`) mengirim
-//! argumennya ke sana lalu keluar. Kemampuannya sama dengan baris perintah biasa.
-#![cfg_attr(not(windows), allow(dead_code))]
+//! Satu instance: instance pertama membuka 127.0.0.1:10008 dan peluncuran berikutnya (shortcut, `kara-dm URL`,
+//! `kara-dm --quit`) mengirim argumennya ke sana lalu keluar. Kemampuannya sama dengan baris perintah biasa.
 
 use crate::Event;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -16,6 +14,12 @@ const MAX_ARGS: usize = 64;
 #[link(name = "user32")]
 unsafe extern "system" {
     fn AllowSetForegroundWindow(process_id: u32) -> i32;
+}
+
+/// Ada instance lain yang sedang menerima perintah.
+pub fn running() -> bool {
+    let addr: SocketAddr = ADDR.parse().expect("alamat tetap");
+    TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
 }
 
 /// Kirim argumen ke instance yang sudah berjalan. `true` = sudah ditangani di sana.

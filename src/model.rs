@@ -58,6 +58,9 @@ pub struct Settings {
     pub check_updates: bool,
     /// Versi terakhir yang sudah diberitahukan lewat notifikasi (tidak diulang tiap kali aplikasi mulai).
     pub notified_version: String,
+    /// Gambar jendela dengan GPU (wgpu) alih-alih renderer software (tiny-skia). GPU memungkinkan efek kaca
+    /// yang lebih berat tapi memakan jauh lebih banyak RAM; berlaku setelah aplikasi dibuka ulang.
+    pub hardware_acceleration: bool,
 }
 
 impl Default for Settings {
@@ -73,6 +76,7 @@ impl Default for Settings {
             autostart_asked: false,
             check_updates: true,
             notified_version: String::new(),
+            hardware_acceleration: false,
         }
     }
 }
@@ -226,17 +230,18 @@ impl Item {
     }
 }
 
-pub const CATEGORIES: [(&str, &str, &str); 10] = [
-    ("all", "All downloads", "folder-download-symbolic"),
-    ("unfinished", "Unfinished", "media-playback-start-symbolic"),
-    ("finished", "Finished", "object-select-symbolic"),
-    ("Video", "Video", "video-x-generic-symbolic"),
-    ("Music", "Music", "audio-x-generic-symbolic"),
-    ("Archives", "Archives", "package-x-generic-symbolic"),
-    ("Documents", "Documents", "x-office-document-symbolic"),
-    ("Programs", "Programs", "application-x-executable-symbolic"),
-    ("Images", "Images", "image-x-generic-symbolic"),
-    ("Other", "Other", "text-x-generic-symbolic"),
+/// (kunci, label) untuk sidebar: filter status lalu kategori jenis berkas (kunci = hasil `category()`).
+pub const CATEGORIES: [(&str, &str); 10] = [
+    ("all", "All downloads"),
+    ("unfinished", "Unfinished"),
+    ("finished", "Finished"),
+    ("Video", "Video"),
+    ("Music", "Music"),
+    ("Archives", "Archives"),
+    ("Documents", "Documents"),
+    ("Programs", "Programs"),
+    ("Images", "Images"),
+    ("Other", "Other"),
 ];
 
 pub fn category(name: &str) -> &'static str {
@@ -251,10 +256,6 @@ pub fn category(name: &str) -> &'static str {
         "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "tif" | "tiff" | "heic" | "avif" => "Images",
         _ => "Other",
     }
-}
-
-pub fn category_icon(cat: &str) -> &'static str {
-    CATEGORIES.iter().find(|c| c.0 == cat).map(|c| c.2).unwrap_or("text-x-generic-symbolic")
 }
 
 pub fn load_history(path: &Path) -> Vec<Item> {
@@ -290,9 +291,8 @@ pub fn fmt_eta(s: Option<u64>) -> String {
 }
 
 pub fn fmt_date(t: u64) -> String {
-    // Tanggal lokal lewat GLib agar zona waktu benar.
-    gtk::glib::DateTime::from_unix_local(t as i64)
-        .and_then(|d| d.format("%d-%m-%Y %H:%M"))
-        .map(|s| s.to_string())
+    // Tanggal lokal (zona waktu sistem).
+    chrono::DateTime::from_timestamp(t as i64, 0)
+        .map(|d| d.with_timezone(&chrono::Local).format("%d-%m-%Y %H:%M").to_string())
         .unwrap_or_default()
 }

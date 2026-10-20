@@ -14,22 +14,20 @@ not to Kara Download Manager.
 
 `curl.exe` comes with Windows 10 and later.
 
-## Libraries (dynamically linked)
+## Interface and libraries
 
-| Component | License | Source |
-| --- | --- | --- |
-| GTK 4 | LGPL-2.1-or-later | <https://gitlab.gnome.org/GNOME/gtk> |
-| libadwaita | LGPL-2.1-or-later | <https://gitlab.gnome.org/GNOME/libadwaita> |
-| GLib, GIO | LGPL-2.1-or-later | <https://gitlab.gnome.org/GNOME/glib> |
-| Pango, gdk-pixbuf, librsvg, cairo, HarfBuzz, and their dependencies | LGPL / MPL / MIT-style (see each project) | Windows builds come from [MSYS2](https://packages.msys2.org/) UCRT64 packages; each package page links its exact source |
-| Adwaita icon theme | CC-BY-SA-3.0 / LGPL-3.0 | <https://gitlab.gnome.org/GNOME/adwaita-icon-theme> |
-
-On Linux (Flatpak) these libraries come from the GNOME runtime and are not part of the Kara DM download.
+The window is drawn by [iced](https://github.com/iced-rs/iced) (MIT), linked into `kara-dm` itself, with its
+software renderer [tiny-skia](https://github.com/linebender/tiny-skia) (BSD-3-Clause) or, with "Use hardware
+acceleration", [wgpu](https://github.com/gfx-rs/wgpu) (MIT OR Apache-2.0). No GTK or other GUI libraries ship with
+Kara DM. On Linux it uses the system's Wayland/X11, xkbcommon and (for hardware acceleration) Vulkan/OpenGL
+drivers; on Windows only system DLLs.
 
 ## Rust crates
 
-Statically linked Rust dependencies (gtk-rs, tungstenite, ureq, serde, …) are MIT and/or Apache-2.0 licensed.
-`cargo tree --format "{p} {l}"` lists them with their licenses.
+Statically linked Rust dependencies (iced, wgpu, tiny-skia, cosmic-text, winit, window-vibrancy, notify-rust,
+rfd, opener, dirs, chrono, tungstenite, ureq, serde, …) are mostly MIT and/or Apache-2.0; a few are BSD-2/3-Clause,
+Zlib, ISC, BSL-1.0, Unicode-3.0, CC0-1.0 or MPL-2.0 (`option-ext`, unmodified). `cargo tree --format "{p} {l}"`
+lists every crate with its license.
 
 If you need the exact corresponding source of a bundled GPL/LGPL component for a given release, open an issue
 and we will provide it.

@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- New interface built with iced instead of GTK 4 / libadwaita: glass panels over the system blur (Mica on
+  Windows 11), toolbar, categories, download list, progress windows with the segment bar, settings and menus.
+  Memory use on Windows dropped from about 125 MB (background) / 210 MB (window open) to about 3 MB / 9 MB, and the
+  Windows bundle no longer carries 65 MB of GTK libraries. No MSYS2 is needed to build on Windows.
+- Settings → "Use hardware acceleration" draws the window with the GPU (wgpu) instead of the software renderer
+  (tiny-skia). Off by default: the GPU path uses about 200 MB; it takes effect after "Save and restart".
+- Single-instance handling (a second launch opens the window, `--quit` stops the running app) now works the same
+  way on Linux and Windows.
 - yt-dlp downloads (YouTube and other page videos) are named after the video's own title plus the resolution
   actually downloaded, as a dash-separated slug: "niki - Tsunami" at 1080p becomes `niki-Tsunami-1080.webm`,
   audio only `niki-Tsunami-audio.m4a`; the name shows in the list as soon as

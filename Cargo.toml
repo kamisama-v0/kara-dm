@@ -6,22 +6,30 @@ description = "Multi-connection download manager for Linux and Windows, compatib
 license = "Apache-2.0"
 repository = "https://github.com/kamisama-v0/kara-dm"
 readme = "README.md"
-keywords = ["download-manager", "aria2", "gtk4", "libadwaita"]
+keywords = ["download-manager", "aria2", "iced"]
 categories = ["network-programming", "gui"]
 
 [dependencies]
-adw = { version = "0.9.2", package = "libadwaita", features = ["v1_6"] }
 async-channel = "2.5.0"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "7.0.0"
 getrandom = "0.4.3"
-gtk = { version = "0.11.5", package = "gtk4", features = ["v4_16"] }
+# tiny-skia = renderer software (bawaan, ±10 MB RAM); wgpu = "Use hardware acceleration".
+iced = { version = "0.14.0", default-features = false, features = ["tiny-skia", "wgpu", "crisp", "smol", "x11", "wayland", "linux-theme-detection"] }
+notify-rust = "4.18.2"
+opener = { version = "0.9.0", features = ["reveal"] }
+rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 ureq = { version = "3.4.2", default-features = false, features = ["json"] }
+window-vibrancy = "0.8.1"
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 
 [profile.release]
-lto = "thin"
+opt-level = "s"
+lto = true
+codegen-units = 1
 strip = true
