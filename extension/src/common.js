@@ -156,8 +156,12 @@
     const total = range ? parseInt(range.split("/")[1], 10) : parseInt(header(details.responseHeaders, "content-length"), 10);
     const size = Number.isFinite(total) ? total : 0;
     if (size > 0 && size < 512 * 1024) return null;
+    // Audio tanpa ukuran hampir selalu efek suara situs (klik, notifikasi, "success.mp3"); musik/podcast utuh
+    // menyebut ukurannya.
+    const audio = ct.startsWith("audio/") || ["mp3", "m4a", "ogg", "opus", "flac", "wav"].includes(ext);
+    if (audio && !size) return null;
     const kindExt = ext || (ct.split("/")[1] || "").replace(/^x-/, "") || "mp4";
-    return { kind: "media", label: kindExt.toUpperCase() + (ct.startsWith("audio/") ? " audio" : " video"), ext: kindExt, url, size };
+    return { kind: "media", label: kindExt.toUpperCase() + (audio ? " audio" : " video"), ext: kindExt, url, size };
   }
 
   function pageEntry(pageUrl, title) {

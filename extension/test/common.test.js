@@ -63,6 +63,20 @@ test("classifyMedia mengenali stream dan berkas media, mengabaikan potongan", ()
   assert.equal(K.classifyMedia({ ...resp("https://v.x/a.m3u8", ""), tabId: -1 }), null);
 });
 
+test("classifyMedia membuang efek suara situs, tetap memberi label audio yang benar", () => {
+  // Efek suara: tanpa ukuran, Content-Type bukan audio/* (persis daftar failure.mp3 / success.mp3 di popup).
+  for (const n of ["failure", "no_input", "success", "open"]) {
+    assert.equal(K.classifyMedia(resp(`https://chat.x/sounds/${n}.mp3`, "application/octet-stream")), null);
+  }
+  assert.equal(K.classifyMedia(resp("https://chat.x/ding.ogg", "audio/ogg")), null);
+  assert.equal(K.classifyMedia(resp("https://chat.x/ding.mp3", "audio/mpeg", { "Content-Length": "40000" })), null);
+  const lagu = K.classifyMedia(resp("https://music.x/lagu.mp3", "application/octet-stream", { "Content-Length": "6000000" }));
+  assert.deepEqual([lagu.label, lagu.size], ["MP3 audio", 6000000]);
+  assert.equal(K.classifyMedia(resp("https://music.x/podcast", "audio/mpeg", { "Content-Length": "90000000" })).label, "MPEG audio");
+  // Video tanpa ukuran (stream progresif) tetap tampil.
+  assert.equal(K.classifyMedia(resp("https://v.x/live.webm", "video/webm")).label, "WEBM video");
+});
+
 test("cookieHeader dan encodeRequestBody", () => {
   assert.equal(K.cookieHeader([{ name: "a", value: "1" }, { name: "b", value: "2" }, { name: "a", value: "9" }]), "a=1; b=2");
   assert.deepEqual(K.encodeRequestBody({ formData: { q: ["a b"], id: ["1", "2"] } }), {
