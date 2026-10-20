@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Kara DM</title>
@@ -23,33 +23,33 @@
   <header>
     <img src="icons/32.png" alt="">
     <h1>Kara DM</h1>
-    <span class="status"><span class="dot" id="dot"></span><span id="status">Memeriksa…</span></span>
+    <span class="status"><span class="dot" id="dot"></span><span id="status">Checking…</span></span>
   </header>
   <div class="glass">
     <label class="row">
-      <span class="grow">Tangkap unduhan</span>
+      <span class="grow">Catch downloads</span>
       <span class="switch"><input type="checkbox" id="capture"><span></span></span>
     </label>
     <label class="row" id="siteRow">
-      <span class="grow ellipsis">Matikan di <span id="site">situs ini</span></span>
+      <span class="grow ellipsis">Off on <span id="site">this site</span></span>
       <span class="switch"><input type="checkbox" id="siteOff"><span></span></span>
     </label>
   </div>
   <div class="glass" id="pageTools">
     <button class="row action" id="links">
-      <span class="grow"><div>Unduh semua tautan…</div><div class="sub">Pilih berkas dari halaman ini</div></span>
+      <span class="grow"><div>Download all links…</div><div class="sub">Pick files from this page</div></span>
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg>
     </button>
     <label class="row">
-      <span class="grow"><div>Kualitas video</div><div class="sub">Untuk video halaman, HLS dan DASH</div></span>
+      <span class="grow"><div>Video quality</div><div class="sub">For page videos, HLS and DASH</div></span>
       <select id="quality"></select>
     </label>
   </div>
-  <div class="section">Media di tab ini</div>
-  <div class="glass" id="media"><div class="empty">Memuat…</div></div>
+  <div class="section">Media in this tab</div>
+  <div class="glass" id="media"><div class="empty">Loading…</div></div>
   <footer>
-    <button class="text" id="options">Pengaturan</button>
-    <button class="text" id="help" title="Cara kerja">Tentang</button>
+    <button class="text" id="options">Settings</button>
+    <button class="text" id="help" title="How it works">About</button>
   </footer>
   <script src="common.js"></script>
   <script src="popup.js"></script>

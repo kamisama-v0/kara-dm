@@ -29,7 +29,7 @@ function connect(timeoutMs = 1500) {
     }
     const timer = setTimeout(() => {
       ws.close();
-      reject(new Error("Kara DM tidak menjawab"));
+      reject(new Error("Kara DM is not responding"));
     }, timeoutMs);
     ws.onopen = () => {
       clearTimeout(timer);
@@ -38,7 +38,7 @@ function connect(timeoutMs = 1500) {
     };
     ws.onerror = () => {
       clearTimeout(timer);
-      reject(new Error("Kara DM tidak berjalan"));
+      reject(new Error("Kara DM is not running"));
     };
     ws.onclose = () => {
       if (socket === ws) socket = null;
@@ -144,7 +144,7 @@ async function handleDownload(item) {
     await connect();
   } catch {
     // Aplikasi tidak jalan: biarkan browser yang mengunduh (berkas tidak hilang).
-    notify("Kara DM tidak berjalan", "Diunduh oleh browser: " + name);
+    notify("Kara DM is not running", "Downloaded by the browser: " + name);
     return;
   }
   try {
@@ -171,7 +171,7 @@ async function handleDownload(item) {
   try {
     await send(req);
   } catch (e) {
-    notify("Gagal mengirim ke Kara DM", e.message + ". Diunduh ulang oleh browser.");
+    notify("Could not send to Kara DM", e.message + ". Downloaded again by the browser.");
     if (req.method === "GET") {
       bypass.add(url);
       setTimeout(() => bypass.delete(url), 10000);
@@ -184,15 +184,15 @@ async function handleDownload(item) {
 
 api.runtime.onInstalled.addListener(async () => {
   await api.contextMenus.removeAll();
-  api.contextMenus.create({ id: "kdm-link", title: "Unduh dengan Kara DM", contexts: ["link"] });
-  api.contextMenus.create({ id: "kdm-media", title: "Unduh media ini dengan Kara DM", contexts: ["video", "audio", "image"] });
-  api.contextMenus.create({ id: "kdm-page", title: "Unduh video halaman ini (yt-dlp)", contexts: ["page", "video"] });
-  api.contextMenus.create({ id: "kdm-links", title: "Unduh semua tautan dengan Kara DM…", contexts: ["page"] });
+  api.contextMenus.create({ id: "kdm-link", title: "Download with Kara DM", contexts: ["link"] });
+  api.contextMenus.create({ id: "kdm-media", title: "Download this media with Kara DM", contexts: ["video", "audio", "image"] });
+  api.contextMenus.create({ id: "kdm-page", title: "Download this page's video (yt-dlp)", contexts: ["page", "video"] });
+  api.contextMenus.create({ id: "kdm-links", title: "Download all links with Kara DM…", contexts: ["page"] });
 });
 
 api.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "kdm-links") return void openLinksPage(tab.id);
-  sendFromMenu(info, tab).catch((e) => notify("Gagal mengirim ke Kara DM", e.message));
+  sendFromMenu(info, tab).catch((e) => notify("Could not send to Kara DM", e.message));
 });
 
 function openLinksPage(tabId) {
@@ -303,7 +303,7 @@ async function handleMessage(msg, sender) {
       try {
         raw = await api.tabs.sendMessage(tab.id, { type: "kara-links" }, { frameId: 0 });
       } catch {
-        throw new Error("Halaman ini belum bisa dibaca. Muat ulang halamannya lalu coba lagi.");
+        throw new Error("Can't read this page yet. Reload it and try again.");
       }
       return { title: tab.title, url: tab.url, links: K.prepareLinks(raw, tab.url) };
     }
@@ -320,6 +320,6 @@ async function handleMessage(msg, sender) {
       return { sent, failed: urls.length - sent };
     }
     default:
-      throw new Error("pesan tidak dikenal: " + msg.type);
+      throw new Error("unknown message: " + msg.type);
   }
 }

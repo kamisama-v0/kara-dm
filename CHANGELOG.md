@@ -20,7 +20,11 @@ All notable changes to this project are documented here. The format follows
   Kara DM follows the page's form with the fresh token; other Drive pages (e.g. "Quota exceeded") now show as a
   failed download with Google's message instead of a saved HTML file.
 - Browser extension: the media list no longer shows a site's sound effects (e.g. `success.mp3`, served without a
-  size), and audio files are labelled "audio" instead of "video".
+  size), and media is labelled simply "Video" or "Audio" (audio used to show as "MP3 video").
+
+### Changed
+- Browser extension: the whole interface (popup, video button menu, settings, "Download links" page, right-click
+  menu and notifications) is in English.
 - Windows: YouTube videos above 360p were saved as two separate files (`.fNNN.mp4` video and `.fNNN.webm` audio)
   because ffmpeg was missing.
 - Windows: clicking the Kara DM icon while it runs in the background opened the window behind other windows.

@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Pengaturan Kara DM</title>
+<title>Kara DM settings</title>
 <link rel="stylesheet" href="glass.css">
 <style>
   body { min-height: 100vh; padding: 48px 16px; }
@@ -28,48 +28,48 @@
 <main>
   <header><img src="icons/48.png" alt=""><h1>Kara DM</h1></header>
 
-  <div class="section">Unduhan</div>
+  <div class="section">Downloads</div>
   <div class="glass">
     <label class="row">
-      <span class="grow"><div>Tangkap unduhan browser</div><div class="sub">Unduhan dikirim ke Kara Download Manager (multi-koneksi). Kalau aplikasinya tidak jalan, browser tetap mengunduh sendiri.</div></span>
+      <span class="grow"><div>Catch browser downloads</div><div class="sub">Downloads go to Kara Download Manager (multi-connection). If the app is not running, the browser downloads them itself.</div></span>
       <span class="switch"><input type="checkbox" id="capture"><span></span></span>
     </label>
     <div class="row">
-      <span class="grow"><div>Situs yang dikecualikan</div><div class="sub">Satu domain per baris; sub-domain ikut.</div>
+      <span class="grow"><div>Excluded sites</div><div class="sub">One domain per line; subdomains included.</div>
         <textarea id="excludedSites" rows="4" placeholder="drive.google.com"></textarea></span>
     </div>
     <div class="row">
-      <span class="grow"><div>Jenis berkas yang dibiarkan ke browser</div><div class="sub">Ekstensi dipisah koma.</div>
+      <span class="grow"><div>File types left to the browser</div><div class="sub">Extensions, separated by commas.</div>
         <textarea id="ignoredExtensions" rows="2" placeholder="pdf, jpg, png"></textarea></span>
     </div>
     <div class="row">
-      <span class="grow"><div>Ukuran minimum (MB)</div><div class="sub">Berkas lebih kecil dibiarkan ke browser; 0 = semua. Hanya berlaku bila ukurannya sudah diketahui.</div>
+      <span class="grow"><div>Minimum size (MB)</div><div class="sub">Smaller files are left to the browser; 0 = all. Only applies when the size is known.</div>
         <input type="number" id="minSizeMB" min="0" step="1"></span>
     </div>
   </div>
 
-  <div class="section">Video &amp; tampilan</div>
+  <div class="section">Video &amp; display</div>
   <div class="glass">
     <label class="row">
-      <span class="grow"><div>Tombol "Unduh video" di atas pemutar</div><div class="sub">Muncul saat kursor di atas video.</div></span>
+      <span class="grow"><div>"Download video" button on players</div><div class="sub">Shows when the pointer is over a video.</div></span>
       <span class="switch"><input type="checkbox" id="videoButton"><span></span></span>
     </label>
     <label class="row">
-      <span class="grow"><div>Kualitas video</div><div class="sub">Untuk video halaman (YouTube, Vimeo, dll), HLS dan DASH lewat yt-dlp. Bisa diganti juga di popup dan menu tombol video. Butuh Kara Download Manager 0.3 atau lebih baru; versi lama selalu memakai kualitas terbaik.</div></span>
+      <span class="grow"><div>Video quality</div><div class="sub">For page videos (YouTube, Vimeo, …), HLS and DASH via yt-dlp. Can also be changed in the popup and the video button menu. Needs Kara Download Manager 0.3 or newer; older versions always use the best quality.</div></span>
       <select id="videoQuality"></select>
     </label>
     <label class="row">
-      <span class="grow"><div>Notifikasi</div><div class="sub">Saat aplikasi tidak jalan atau pengiriman gagal.</div></span>
+      <span class="grow"><div>Notifications</div><div class="sub">When the app is not running or sending fails.</div></span>
       <span class="switch"><input type="checkbox" id="notify"><span></span></span>
     </label>
   </div>
-  <div class="saved" id="saved">Tersimpan</div>
+  <div class="saved" id="saved">Saved</div>
 
-  <div class="section" id="tentang">Tentang</div>
+  <div class="section" id="about">About</div>
   <div class="glass">
-    <p>Kara DM mengirim unduhan ke <b>Kara Download Manager</b> lewat <code>ws://127.0.0.1:10007</code>, protokol yang sama dengan aplikasi Neat Download Manager, jadi juga bekerja dengan NDM di Windows/macOS. Tidak ada data yang dikirim ke internet.</p>
-    <p>Video: putar sebentar agar alirannya terdeteksi, lalu pakai tombol di atas pemutar atau popup. "Video halaman ini" mengunduh lewat yt-dlp (YouTube, Vimeo, X, dll).</p>
-    <p>Matikan ekstensi NDM resmi bila masih terpasang, agar unduhan tidak ditangkap dua kali.</p>
+    <p>Kara DM sends downloads to <b>Kara Download Manager</b> over <code>ws://127.0.0.1:10007</code>, the same protocol as the Neat Download Manager app, so it also works with NDM on Windows/macOS. No data is sent to the internet.</p>
+    <p>Video: play it for a moment so the stream is detected, then use the button on the player or the popup. "This page's video" downloads through yt-dlp (YouTube, Vimeo, X, …).</p>
+    <p>Turn off the official NDM extension if it is still installed, so downloads are not caught twice.</p>
   </div>
 </main>
 <script src="common.js"></script>

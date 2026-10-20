@@ -28,13 +28,13 @@ test("buildMessage POST menaruh body setelah penanda", () => {
 test("captureDecision menghormati pengaturan", () => {
   const item = { url: "https://dl.example.com/f.iso", referrer: "https://example.com/", filename: "/home/k/Downloads/f.iso", totalBytes: 5e8 };
   assert.equal(K.captureDecision(item, {}), null);
-  assert.equal(K.captureDecision(item, { capture: false }), "tangkapan dimatikan");
-  assert.equal(K.captureDecision({ ...item, incognito: true }, {}), "jendela privat");
-  assert.equal(K.captureDecision({ ...item, url: "blob:https://x/1" }, {}), "bukan http/https/ftp");
-  assert.equal(K.captureDecision(item, { excludedSites: ["example.com"] }), "situs dikecualikan");
+  assert.equal(K.captureDecision(item, { capture: false }), "capture is off");
+  assert.equal(K.captureDecision({ ...item, incognito: true }, {}), "private window");
+  assert.equal(K.captureDecision({ ...item, url: "blob:https://x/1" }, {}), "not http/https/ftp");
+  assert.equal(K.captureDecision(item, { excludedSites: ["example.com"] }), "excluded site");
   assert.equal(K.captureDecision(item, { excludedSites: ["other.org"] }), null);
-  assert.equal(K.captureDecision(item, { ignoredExtensions: [".ISO"] }), "jenis berkas diabaikan");
-  assert.equal(K.captureDecision({ ...item, totalBytes: 1000 }, { minSizeMB: 1 }), "di bawah ukuran minimum");
+  assert.equal(K.captureDecision(item, { ignoredExtensions: [".ISO"] }), "ignored file type");
+  assert.equal(K.captureDecision({ ...item, totalBytes: 1000 }, { minSizeMB: 1 }), "below the minimum size");
 });
 
 test("siteMatches mencocokkan sub-domain, bukan akhiran sembarang", () => {
@@ -51,7 +51,7 @@ const resp = (url, ct, extra = {}) => ({
 
 test("classifyMedia mengenali stream dan berkas media, mengabaikan potongan", () => {
   assert.equal(K.classifyMedia(resp("https://v.x/master.m3u8?t=1", "application/vnd.apple.mpegurl")).kind, "hls");
-  assert.equal(K.classifyMedia(resp("https://v.x/a.mpd", "application/dash+xml")).label, "Stream DASH");
+  assert.equal(K.classifyMedia(resp("https://v.x/a.mpd", "application/dash+xml")).label, "DASH stream");
   const mp4 = K.classifyMedia(resp("https://v.x/film.mp4", "video/mp4", { "Content-Length": "50000000" }));
   assert.deepEqual([mp4.kind, mp4.ext, mp4.size], ["media", "mp4", 50000000]);
   assert.equal(K.classifyMedia(resp("https://v.x/seg1.ts", "video/mp2t")), null);
@@ -71,10 +71,10 @@ test("classifyMedia membuang efek suara situs, tetap memberi label audio yang be
   assert.equal(K.classifyMedia(resp("https://chat.x/ding.ogg", "audio/ogg")), null);
   assert.equal(K.classifyMedia(resp("https://chat.x/ding.mp3", "audio/mpeg", { "Content-Length": "40000" })), null);
   const lagu = K.classifyMedia(resp("https://music.x/lagu.mp3", "application/octet-stream", { "Content-Length": "6000000" }));
-  assert.deepEqual([lagu.label, lagu.size], ["MP3 audio", 6000000]);
-  assert.equal(K.classifyMedia(resp("https://music.x/podcast", "audio/mpeg", { "Content-Length": "90000000" })).label, "MPEG audio");
+  assert.deepEqual([lagu.label, lagu.size], ["Audio", 6000000]);
+  assert.equal(K.classifyMedia(resp("https://music.x/podcast", "audio/mpeg", { "Content-Length": "90000000" })).label, "Audio");
   // Video tanpa ukuran (stream progresif) tetap tampil.
-  assert.equal(K.classifyMedia(resp("https://v.x/live.webm", "video/webm")).label, "WEBM video");
+  assert.equal(K.classifyMedia(resp("https://v.x/live.webm", "video/webm")).label, "Video");
 });
 
 test("cookieHeader dan encodeRequestBody", () => {
@@ -95,8 +95,8 @@ test("buildMessage membawa kualitas dan penanda massal (kunci khusus Kara DM)", 
   const best = K.buildMessage({ url: "https://youtu.be/x", kind: "hls", quality: "best" });
   assert.ok(!best.includes("10:") && !best.includes("11:"));
   assert.ok(!K.buildMessage({ url: "https://youtu.be/x", quality: "--exec x" }).includes("10:"));
-  assert.equal(K.qualityLabel("audio"), "Audio saja");
-  assert.equal(K.qualityLabel("aneh"), "Terbaik");
+  assert.equal(K.qualityLabel("audio"), "Audio only");
+  assert.equal(K.qualityLabel("aneh"), "Best");
 });
 
 test("prepareLinks merapikan dan mengelompokkan tautan halaman", () => {
