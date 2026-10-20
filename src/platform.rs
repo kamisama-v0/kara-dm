@@ -128,6 +128,7 @@ pub fn user_agent() -> String {
     format!("Mozilla/5.0 ({os}; rv:{v}.0) Gecko/20100101 Firefox/{v}.0")
 }
 
+#[cfg(unix)]
 fn spawn_quiet(mut cmd: Command) -> bool {
     match cmd.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn() {
         Ok(mut c) => {
