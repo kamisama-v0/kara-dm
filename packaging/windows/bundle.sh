@@ -25,4 +25,5 @@ if [[ -d dist/windows/ffmpeg ]]; then
 fi
 
 cp LICENSE NOTICE THIRD-PARTY.md "$out/"
+mkdir -p "$out/licenses/phosphor" && cp assets/fonts/Phosphor-LICENSE "$out/licenses/phosphor/LICENSE"
 echo "bundel Windows: $out ($(du -sh "$out" | cut -f1))"

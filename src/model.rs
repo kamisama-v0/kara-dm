@@ -129,16 +129,6 @@ pub enum Status {
 }
 
 impl Status {
-    pub fn label(self) -> &'static str {
-        match self {
-            Status::Waiting => "Queued",
-            Status::Active => "Downloading",
-            Status::Paused => "Paused",
-            Status::Merging => "Merging",
-            Status::Complete => "Complete",
-            Status::Error => "Failed",
-        }
-    }
     pub fn finished(self) -> bool {
         self == Status::Complete
     }

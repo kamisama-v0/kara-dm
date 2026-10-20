@@ -7,8 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
-- New interface built with iced instead of GTK 4 / libadwaita: glass panels over the system blur (Mica on
-  Windows 11), toolbar, categories, download list, progress windows with the segment bar, settings and menus.
+- New interface built with iced instead of GTK 4 / libadwaita, in the Windows 11 style over the system Mica
+  material: a left navigation with counts, one accent "Add download" button, two-line download rows (name, then
+  size, speed and time left) with a thin progress bar and quick actions on hover, Phosphor icons, a progress window
+  with the segment bar, grouped settings and menus.
+- Right-click a download for Open, Show in folder, Pause/Resume, Copy link and Remove.
+- Windows: Kara DM shows an icon in the notification area while it runs; click it to open the window, right-click
+  it for Open, Settings and Quit.
   Memory use on Windows dropped from about 125 MB (background) / 210 MB (window open) to about 3 MB / 9 MB, and the
   Windows bundle no longer carries 65 MB of GTK libraries. No MSYS2 is needed to build on Windows.
 - Settings → "Use hardware acceleration" draws the window with the GPU (wgpu) instead of the software renderer

@@ -25,6 +25,9 @@ tungstenite = { version = "0.30.0", default-features = false, features = ["hands
 ureq = { version = "3.4.2", default-features = false, features = ["json"] }
 window-vibrancy = "0.8.1"
 
+[target.'cfg(windows)'.dependencies]
+tray-icon = "0.26.1"
+
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 
@@ -33,3 +36,6 @@ opt-level = "s"
 lto = true
 codegen-units = 1
 strip = true
+
+[dev-dependencies]
+iced_test = "0.14"

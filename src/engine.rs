@@ -1048,6 +1048,42 @@ impl Engine {
     }
 }
 
+/// Inti tanpa aria2, server WebSocket maupun berkas: untuk menguji antarmuka.
+#[cfg(test)]
+impl Engine {
+    pub fn offline(items: Vec<Item>) -> Engine {
+        let dir = std::env::temp_dir().join("kara-dm-test-offline");
+        let (tx, rx) = async_channel::unbounded();
+        let now = Instant::now();
+        Engine {
+            paths: model::Paths {
+                settings: dir.join("settings.json"),
+                history: dir.join("history.json"),
+                session: dir.join("aria2.session"),
+                log: dir.join("aria2.log"),
+                parts: dir.join("parts"),
+                runtime: dir,
+            },
+            settings: Settings::default(),
+            items,
+            aria: None,
+            aria_error: None,
+            ws_error: None,
+            shared: Arc::new(ws::Shared { connections: AtomicUsize::new(0), media_panel: AtomicBool::new(true) }),
+            tx,
+            rx,
+            ua: String::new(),
+            jobs: HashMap::new(),
+            dirty: false,
+            last_save: now,
+            next_update_check: now + Duration::from_secs(3600),
+            update: None,
+            updating: false,
+            effects: vec![],
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

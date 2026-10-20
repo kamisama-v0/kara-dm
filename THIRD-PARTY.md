@@ -22,6 +22,10 @@ acceleration", [wgpu](https://github.com/gfx-rs/wgpu) (MIT OR Apache-2.0). No GT
 Kara DM. On Linux it uses the system's Wayland/X11, xkbcommon and (for hardware acceleration) Vulkan/OpenGL
 drivers; on Windows only system DLLs.
 
+Icons come from [Phosphor Icons](https://phosphoricons.com) 2.1.2 (regular weight, MIT), embedded as a font;
+its license is in `assets/fonts/Phosphor-LICENSE` (`licenses/phosphor` in the Windows bundle). The Windows
+notification-area icon uses [tray-icon](https://github.com/tauri-apps/tray-icon) (MIT OR Apache-2.0).
+
 ## Rust crates
 
 Statically linked Rust dependencies (iced, wgpu, tiny-skia, cosmic-text, winit, window-vibrancy, notify-rust,

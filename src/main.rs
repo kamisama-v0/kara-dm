@@ -21,6 +21,7 @@ mod jobs;
 mod model;
 mod platform;
 mod protocol;
+mod tray;
 mod update;
 mod ws;
 
