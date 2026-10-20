@@ -77,6 +77,9 @@ pub fn spawn(mut job: Job, tx: async_channel::Sender<Event>) -> Result<Slot, Str
                 let num = |i: usize| f.get(i).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0) as u64;
                 let total = if num(1) > 0 { num(1) } else { num(2) };
                 let _ = tx.send_blocking(Event::JobProgress { id: job.id.clone(), done: num(0), total, speed: num(3) });
+            } else if let Some(name) = line.strip_prefix("KDMNAME ") {
+                let name = Path::new(name).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let _ = tx.send_blocking(Event::JobName { id: job.id.clone(), name });
             } else if !line.is_empty() {
                 let p = PathBuf::from(line);
                 path = Some(if p.is_absolute() { p } else { job.dir.join(p) });

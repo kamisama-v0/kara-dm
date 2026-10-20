@@ -21,15 +21,29 @@ pub struct Shared {
     pub media_panel: AtomicBool,
 }
 
+/// Buka 127.0.0.1:10007. Kalau port masih dipakai (mis. Neat Download Manager belum ditutup saat login), coba
+/// lagi tiap 5 detik di latar belakang dan kirim `Event::WsReady` begitu berhasil. Hasil percobaan pertama
+/// dikembalikan supaya bisa ditampilkan.
 pub fn start(tx: async_channel::Sender<Event>, shared: Arc<Shared>) -> std::io::Result<()> {
-    let listener = TcpListener::bind(("127.0.0.1", PORT))?;
+    let first = TcpListener::bind(("127.0.0.1", PORT));
+    let err = first.as_ref().err().map(|e| std::io::Error::new(e.kind(), e.to_string()));
     std::thread::Builder::new().name("ws-accept".into()).spawn(move || {
+        let listener = match first {
+            Ok(l) => l,
+            Err(_) => loop {
+                std::thread::sleep(Duration::from_secs(5));
+                if let Ok(l) = TcpListener::bind(("127.0.0.1", PORT)) {
+                    let _ = tx.send_blocking(Event::WsReady);
+                    break l;
+                }
+            },
+        };
         for stream in listener.incoming().flatten() {
             let (tx, shared) = (tx.clone(), shared.clone());
             let _ = std::thread::Builder::new().name("ws-conn".into()).spawn(move || handle(stream, tx, shared));
         }
     })?;
-    Ok(())
+    err.map_or(Ok(()), Err)
 }
 
 fn origin_allowed(req: &Request) -> bool {

@@ -49,6 +49,13 @@ pub enum Event {
         id: String,
         result: Result<Option<String>, String>,
     },
+    /// Nama berkas akhir yang dipilih yt-dlp (judul + resolusi), diketahui sebelum unduhan mulai.
+    JobName {
+        id: String,
+        name: String,
+    },
+    /// Port 10007 akhirnya terbuka setelah sebelumnya dipakai aplikasi lain.
+    WsReady,
     /// Argumen dari peluncuran kedua (Windows, lihat instance.rs).
     Remote(Vec<String>),
     /// Hasil cek rilis GitHub; `manual` = dari menu "Periksa pembaruan" (hasil apa pun ditampilkan).
@@ -67,7 +74,7 @@ pub struct App {
     pub items: RefCell<Vec<Item>>,
     aria: Option<Arc<aria2::Aria2>>,
     aria_error: Option<String>,
-    ws_error: Option<String>,
+    ws_error: RefCell<Option<String>>,
     shared: Arc<ws::Shared>,
     tx: async_channel::Sender<Event>,
     ua: String,
@@ -138,6 +145,20 @@ fn unique_name(dirs: &[&Path], stem: &str, ext: &str) -> String {
     name
 }
 
+/// Template nama yt-dlp: judul + resolusi yang benar-benar terpilih, mis. `Judul [1080p].webm` atau
+/// `Judul [audio].m4a`. Video halaman (YouTube dll.) memakai judul dari yt-dlp sendiri, karena judul tab bisa
+/// basi di situs SPA; stream HLS/DASH memakai judul halaman.
+fn ytdlp_template(it: &Item) -> String {
+    let name = if it.url == it.page {
+        "%(title).150B".to_string()
+    } else {
+        let t = protocol::title_stem(&it.title);
+        if t.is_empty() || t == "unduhan" { "video".into() } else { t.replace('%', "%%") }
+    };
+    let res = if it.quality == "audio" { " [audio]" } else { "%(height& [{}p]|)s" };
+    format!("{name}{res}.%(ext)s")
+}
+
 /// Pindahkan berkas yang sudah selesai dari folder temp ke folder unduhan. Folder temp ada di dalam folder
 /// unduhan (satu drive), jadi ini hanya ganti nama, bukan menyalin.
 fn move_to_final(path: &Path, dir: &Path) -> std::io::Result<PathBuf> {
@@ -193,7 +214,9 @@ impl App {
         });
         let ws_error = ws::start(tx.clone(), shared.clone()).err().map(|e| {
             if e.kind() == std::io::ErrorKind::AddrInUse {
-                "port 10007 sudah dipakai aplikasi lain (mis. Neat Download Manager)".to_string()
+                "port 10007 sudah dipakai aplikasi lain (mis. Neat Download Manager); tutup aplikasi itu, Kara DM \
+                 mengambil alih otomatis"
+                    .to_string()
             } else {
                 e.to_string()
             }
@@ -214,7 +237,7 @@ impl App {
             items: RefCell::new(items),
             aria,
             aria_error,
-            ws_error,
+            ws_error: RefCell::new(ws_error),
             shared,
             tx,
             ua,
@@ -226,7 +249,7 @@ impl App {
             update: RefCell::default(),
             updating: Cell::new(false),
         });
-        for e in [&app.aria_error, &app.ws_error].into_iter().flatten() {
+        for e in [app.aria_error.clone(), app.ws_error.borrow().clone()].iter().flatten() {
             eprintln!("kara-dm: {e}");
             app.notify("Kara Download Manager bermasalah", e, None);
         }
@@ -366,6 +389,20 @@ impl App {
                 self.refresh_item(&id);
             }
             Event::JobDone { id, result } => self.job_done(&id, result),
+            Event::JobName { id, name } => {
+                self.with_item(&id, |it| {
+                    if !it.status.finished() && !name.is_empty() {
+                        it.name = name;
+                    }
+                });
+                self.dirty.set(true);
+                self.refresh_item(&id);
+            }
+            Event::WsReady => {
+                eprintln!("kara-dm: port 10007 terbuka, ekstensi browser bisa tersambung");
+                self.ws_error.replace(None);
+                self.refresh_summary();
+            }
             Event::Remote(args) => self.run_args(args),
             Event::UpdateChecked { result, manual } => self.update_checked(result, manual),
             Event::UpdateDownloaded(result) => self.update_downloaded(result),
@@ -598,7 +635,8 @@ impl App {
             "--newline", "--progress", "--no-simulate", "--no-playlist", "--no-mtime", "--no-warnings", "-N", "8",
             "--progress-template",
             "download:KDM %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s",
-            "--print", "after_move:filepath", "--user-agent",
+            "--print", "after_move:filepath", "--print", "video:KDMNAME %(filename)s", "--windows-filenames",
+            "--user-agent",
         ]);
         cmd.arg(&self.ua);
         cmd.args(protocol::ytdlp_format_args(&it.quality));
@@ -613,13 +651,13 @@ impl App {
                 cmd.arg("--add-header").arg(format!("{k}:{v}"));
             }
         }
-        let stem = it.name.rsplit_once('.').map(|x| x.0).unwrap_or(&it.name);
+        let template = ytdlp_template(it);
         if it.temp_dir.is_empty() {
-            cmd.arg("-o").arg(Path::new(&it.dir).join(format!("{stem}.%(ext)s")));
+            cmd.arg("-o").arg(Path::new(&it.dir).join(template));
         } else {
             // Potongan .part di folder temp; yt-dlp sendiri memindahkan hasil akhirnya ke folder unduhan.
             cmd.arg("-P").arg(format!("home:{}", it.dir)).arg("-P").arg(format!("temp:{}", it.temp_dir));
-            cmd.arg("-o").arg(format!("{stem}.%(ext)s"));
+            cmd.arg("-o").arg(template);
         }
         cmd.arg("--").arg(&it.url);
         Ok(jobs::Job { id: it.id.clone(), cmd, dir: it.dir.clone().into(), temp, output: None })
@@ -910,7 +948,7 @@ impl App {
             w.refresh_summary(
                 &self.items.borrow(),
                 self.shared.connections.load(Ordering::SeqCst),
-                self.ws_error.as_deref(),
+                self.ws_error.borrow().as_deref(),
                 self.aria_error.as_deref(),
             );
         }
@@ -1316,6 +1354,24 @@ fn main() -> glib::ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ytdlp_names_carry_title_and_resolution() {
+        let page = "https://www.youtube.com/watch?v=x";
+        let mut it = Item { url: page.into(), page: page.into(), title: "Basi - YouTube".into(), ..Default::default() };
+        assert_eq!(ytdlp_template(&it), "%(title).150B%(height& [{}p]|)s.%(ext)s");
+        it.quality = "audio".into();
+        assert_eq!(ytdlp_template(&it), "%(title).150B [audio].%(ext)s");
+        let hls = Item {
+            url: "https://cdn.x/master.m3u8".into(),
+            page: "https://x/tonton".into(),
+            title: "Diskon 100% - YouTube".into(),
+            ..Default::default()
+        };
+        assert_eq!(ytdlp_template(&hls), "Diskon 100%%%(height& [{}p]|)s.%(ext)s");
+        let untitled = Item { url: "https://cdn.x/a.m3u8".into(), ..Default::default() };
+        assert_eq!(ytdlp_template(&untitled), "video%(height& [{}p]|)s.%(ext)s");
+    }
 
     #[test]
     fn finished_file_moves_out_of_temp_with_unique_name() {
