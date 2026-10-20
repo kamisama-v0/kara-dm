@@ -93,10 +93,10 @@ pub fn spawn(mut job: Job, tx: async_channel::Sender<Event>) -> Result<Slot, Str
             Some(Ok(s)) if s.success() => Ok(path.map(|p| p.to_string_lossy().into_owned())),
             Some(Ok(s)) => {
                 let tail = err_tail.lock().unwrap().join(" | ");
-                Err(if tail.is_empty() { format!("keluar dengan {s}") } else { tail })
+                Err(if tail.is_empty() { format!("exited with {s}") } else { tail })
             }
             Some(Err(e)) => Err(e.to_string()),
-            None => Err("dihentikan".into()),
+            None => Err("stopped".into()),
         };
         let _ = tx.send_blocking(Event::JobDone { id: job.id, result });
     });

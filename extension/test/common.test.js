@@ -124,3 +124,11 @@ test("prepareLinks merapikan dan mengelompokkan tautan halaman", () => {
   assert.equal(K.linkCategory("https://x.org/a.PDF"), "document");
   assert.equal(K.linkCategory("https://x.org/setup.exe"), "program");
 });
+
+test("pageTitle shows the video title without the site name", () => {
+  const e = (title) => K.pageEntry("https://www.youtube.com/watch?v=x", title);
+  assert.equal(K.pageTitle(e("niki - Tsunami - YouTube")), "niki - Tsunami");
+  assert.equal(K.pageTitle(e("(3) niki - Tsunami - YouTube")), "niki - Tsunami");
+  assert.equal(K.pageTitle(e("A clip | Vimeo")), "A clip");
+  assert.equal(K.pageTitle(e("")), "This page's video (yt-dlp)");
+});

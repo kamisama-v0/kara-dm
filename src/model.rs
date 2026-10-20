@@ -127,12 +127,12 @@ pub enum Status {
 impl Status {
     pub fn label(self) -> &'static str {
         match self {
-            Status::Waiting => "Antre",
-            Status::Active => "Mengunduh",
-            Status::Paused => "Dijeda",
-            Status::Merging => "Menggabung",
-            Status::Complete => "Selesai",
-            Status::Error => "Gagal",
+            Status::Waiting => "Queued",
+            Status::Active => "Downloading",
+            Status::Paused => "Paused",
+            Status::Merging => "Merging",
+            Status::Complete => "Complete",
+            Status::Error => "Failed",
         }
     }
     pub fn finished(self) -> bool {
@@ -227,29 +227,29 @@ impl Item {
 }
 
 pub const CATEGORIES: [(&str, &str, &str); 10] = [
-    ("all", "Semua unduhan", "folder-download-symbolic"),
-    ("unfinished", "Belum selesai", "media-playback-start-symbolic"),
-    ("finished", "Selesai", "object-select-symbolic"),
+    ("all", "All downloads", "folder-download-symbolic"),
+    ("unfinished", "Unfinished", "media-playback-start-symbolic"),
+    ("finished", "Finished", "object-select-symbolic"),
     ("Video", "Video", "video-x-generic-symbolic"),
-    ("Musik", "Musik", "audio-x-generic-symbolic"),
-    ("Arsip", "Arsip", "package-x-generic-symbolic"),
-    ("Dokumen", "Dokumen", "x-office-document-symbolic"),
-    ("Program", "Program", "application-x-executable-symbolic"),
-    ("Gambar", "Gambar", "image-x-generic-symbolic"),
-    ("Lainnya", "Lainnya", "text-x-generic-symbolic"),
+    ("Music", "Music", "audio-x-generic-symbolic"),
+    ("Archives", "Archives", "package-x-generic-symbolic"),
+    ("Documents", "Documents", "x-office-document-symbolic"),
+    ("Programs", "Programs", "application-x-executable-symbolic"),
+    ("Images", "Images", "image-x-generic-symbolic"),
+    ("Other", "Other", "text-x-generic-symbolic"),
 ];
 
 pub fn category(name: &str) -> &'static str {
     let ext = crate::protocol::ext_of(name).unwrap_or_default();
     match ext.as_str() {
         "mp4" | "mkv" | "webm" | "avi" | "mov" | "wmv" | "flv" | "m4v" | "ts" | "mpg" | "mpeg" | "3gp" => "Video",
-        "mp3" | "m4a" | "aac" | "flac" | "ogg" | "opus" | "wav" | "wma" | "weba" => "Musik",
-        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "zst" | "tgz" | "iso" | "img" | "dmg" => "Arsip",
+        "mp3" | "m4a" | "aac" | "flac" | "ogg" | "opus" | "wav" | "wma" | "weba" => "Music",
+        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "zst" | "tgz" | "iso" | "img" | "dmg" => "Archives",
         "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" | "txt" | "epub" | "csv"
-        | "md" | "vtt" | "srt" => "Dokumen",
-        "exe" | "msi" | "deb" | "rpm" | "appimage" | "apk" | "pkg" | "sh" | "jar" | "run" => "Program",
-        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "tif" | "tiff" | "heic" | "avif" => "Gambar",
-        _ => "Lainnya",
+        | "md" | "vtt" | "srt" => "Documents",
+        "exe" | "msi" | "deb" | "rpm" | "appimage" | "apk" | "pkg" | "sh" | "jar" | "run" => "Programs",
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "tif" | "tiff" | "heic" | "avif" => "Images",
+        _ => "Other",
     }
 }
 
@@ -283,9 +283,9 @@ pub fn fmt_speed(b: u64) -> String {
 pub fn fmt_eta(s: Option<u64>) -> String {
     match s {
         None => String::new(),
-        Some(s) if s >= 3600 => format!("{} jam {} mnt", s / 3600, s % 3600 / 60),
-        Some(s) if s >= 60 => format!("{} mnt {} dtk", s / 60, s % 60),
-        Some(s) => format!("{s} dtk"),
+        Some(s) if s >= 3600 => format!("{} h {} min", s / 3600, s % 3600 / 60),
+        Some(s) if s >= 60 => format!("{} min {} s", s / 60, s % 60),
+        Some(s) => format!("{s} s"),
     }
 }
 

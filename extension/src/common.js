@@ -169,6 +169,16 @@
     return { kind: "hls", page: true, label: "This page's video (yt-dlp)", ext: "", url: pageUrl, size: 0, title };
   }
 
+  // Judul yang ditampilkan untuk video halaman: judul tab tanpa nama situs ("niki - Tsunami - YouTube" ->
+  // "niki - Tsunami"), atau label umum bila tab tak berjudul.
+  function pageTitle(entry) {
+    const t = String(entry.title || "")
+      .replace(/^\(\d+\)\s*/, "")
+      .replace(/\s+[-|–]\s+(YouTube|Vimeo|X|Twitter|Instagram|Facebook|TikTok|Twitch|Dailymotion|Reddit|bilibili)$/i, "")
+      .trim();
+    return t || entry.label;
+  }
+
   function isVideoSite(pageUrl) {
     return PAGE_SITES.test(hostOf(pageUrl));
   }
@@ -270,6 +280,7 @@
     captureDecision,
     classifyMedia,
     pageEntry,
+    pageTitle,
     isVideoSite,
     buildMessage,
     cookieHeader,

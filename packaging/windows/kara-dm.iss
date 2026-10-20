@@ -31,7 +31,7 @@ CloseApplications=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "autostart"; Description: "Run at sign-in (catch downloads from the browser) / Jalankan saat login"; Flags: checkedonce
+Name: "autostart"; Description: "Run at sign-in (catch downloads from the browser)"; Flags: checkedonce
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
 
 [Files]

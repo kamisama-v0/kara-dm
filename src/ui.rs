@@ -65,9 +65,9 @@ impl Row {
         self.icon.set_icon_name(Some(model::category_icon(it.category())));
         self.name.set_label(it.display_name());
         let when = if it.finished > 0 {
-            format!("Selesai {}", model::fmt_date(it.finished))
+            format!("Finished {}", model::fmt_date(it.finished))
         } else {
-            format!("Ditambahkan {}", model::fmt_date(it.added))
+            format!("Added {}", model::fmt_date(it.added))
         };
         self.row.set_tooltip_text(Some(&format!("{}\n{}\n{when}", it.display_name(), it.url)));
         self.size.set_label(&if it.size > 0 { model::fmt_size(it.size) } else { String::new() });
@@ -131,22 +131,22 @@ impl MainWindow {
         // Toolbar ala NDM: tombol berlabel.
         let hb = adw::HeaderBar::new();
         for (icon, text, action, tip) in [
-            ("list-add-symbolic", "Tambah", "win.add", "Tambah URL (Ctrl+N)"),
-            ("media-playback-start-symbolic", "Lanjutkan", "win.resume", "Lanjutkan yang dipilih"),
-            ("media-playback-pause-symbolic", "Jeda", "win.pause", "Jeda yang dipilih"),
-            ("user-trash-symbolic", "Hapus", "win.remove", "Hapus yang dipilih (Delete)"),
+            ("list-add-symbolic", "Add", "win.add", "Add URL (Ctrl+N)"),
+            ("media-playback-start-symbolic", "Resume", "win.resume", "Resume selected"),
+            ("media-playback-pause-symbolic", "Pause", "win.pause", "Pause selected"),
+            ("user-trash-symbolic", "Remove", "win.remove", "Remove selected (Delete)"),
         ] {
             let content = adw::ButtonContent::builder().icon_name(icon).label(text).build();
             let b = gtk::Button::builder().child(&content).action_name(action).tooltip_text(tip).build();
             hb.pack_start(&b);
         }
         let menu = gio::Menu::new();
-        menu.append(Some("Buka folder unduhan"), Some("win.open-dir"));
-        menu.append(Some("Bersihkan yang selesai dari daftar"), Some("win.clear-finished"));
-        menu.append(Some("Pengaturan"), Some("win.settings"));
-        menu.append(Some("Periksa pembaruan"), Some("win.check-update"));
-        menu.append(Some("Tentang"), Some("win.about"));
-        menu.append(Some("Keluar (berhenti menangkap unduhan)"), Some("app.quit"));
+        menu.append(Some("Open download folder"), Some("win.open-dir"));
+        menu.append(Some("Clear finished from list"), Some("win.clear-finished"));
+        menu.append(Some("Settings"), Some("win.settings"));
+        menu.append(Some("Check for updates"), Some("win.check-update"));
+        menu.append(Some("About"), Some("win.about"));
+        menu.append(Some("Quit (stop catching downloads)"), Some("app.quit"));
         hb.pack_end(&gtk::MenuButton::builder().icon_name("open-menu-symbolic").menu_model(&menu).build());
 
         // Sidebar kategori.
@@ -187,13 +187,13 @@ impl MainWindow {
         let header =
             gtk::Box::builder().spacing(10).margin_top(6).margin_bottom(6).margin_start(10).margin_end(10).build();
         header.append(&gtk::Box::builder().width_request(16).build());
-        let hname = gtk::Label::builder().label("Nama").xalign(0.0).hexpand(true).build();
+        let hname = gtk::Label::builder().label("Name").xalign(0.0).hexpand(true).build();
         header.append(&hname);
         for (t, w, x) in [
-            ("Ukuran", W_SIZE, 1.0),
-            ("Progres", W_PROGRESS, 0.5),
-            ("Kecepatan", W_SPEED, 1.0),
-            ("Sisa", W_ETA, 1.0),
+            ("Size", W_SIZE, 1.0),
+            ("Progress", W_PROGRESS, 0.5),
+            ("Speed", W_SPEED, 1.0),
+            ("Time left", W_ETA, 1.0),
             ("Status", W_STATUS, 0.0),
         ] {
             header.append(&label(t, w, x));
@@ -206,8 +206,8 @@ impl MainWindow {
         list.set_placeholder(Some(
             &adw::StatusPage::builder()
                 .icon_name("folder-download-symbolic")
-                .title("Belum ada unduhan")
-                .description("Klik tautan unduhan di browser (ekstensi Kara DM), atau tekan Tambah.")
+                .title("No downloads yet")
+                .description("Click a download link in the browser (Kara DM extension), or press Add.")
                 .build(),
         ));
         let scroll = gtk::ScrolledWindow::builder().child(&list).vexpand(true).build();
@@ -348,7 +348,7 @@ impl MainWindow {
                 .application_icon(crate::APP_ID)
                 .version(env!("CARGO_PKG_VERSION"))
                 .developer_name("kamisama-v0")
-                .comments("Download manager multi-koneksi (aria2) yang menerima unduhan dari ekstensi browser Kara DM atau Neat Download Manager. Implementasi clean-room; tidak berafiliasi dengan Neat Download Manager.")
+                .comments("Multi-connection download manager (aria2) that takes downloads from the Kara DM or Neat Download Manager browser extension. Clean-room implementation; not affiliated with Neat Download Manager.")
                 .website("https://github.com/kamisama-v0/kara-dm")
                 .issue_url("https://github.com/kamisama-v0/kara-dm/issues")
                 .license_type(gtk::License::Apache20)
@@ -373,13 +373,13 @@ impl MainWindow {
         }
         // Menu klik kanan.
         let ctx = gio::Menu::new();
-        ctx.append(Some("Buka"), Some("win.open"));
-        ctx.append(Some("Buka folder"), Some("win.open-folder"));
-        ctx.append(Some("Jendela progres"), Some("win.progress"));
-        ctx.append(Some("Lanjutkan"), Some("win.resume"));
-        ctx.append(Some("Jeda"), Some("win.pause"));
-        ctx.append(Some("Salin URL"), Some("win.copy-url"));
-        ctx.append(Some("Hapus…"), Some("win.remove"));
+        ctx.append(Some("Open"), Some("win.open"));
+        ctx.append(Some("Open folder"), Some("win.open-folder"));
+        ctx.append(Some("Progress window"), Some("win.progress"));
+        ctx.append(Some("Resume"), Some("win.resume"));
+        ctx.append(Some("Pause"), Some("win.pause"));
+        ctx.append(Some("Copy URL"), Some("win.copy-url"));
+        ctx.append(Some("Remove…"), Some("win.remove"));
         let pop = gtk::PopoverMenu::from_model(Some(&ctx));
         pop.set_parent(&list);
         pop.set_has_arrow(false);
@@ -440,11 +440,11 @@ impl MainWindow {
         };
         let installs = cfg!(windows) && r.installer.is_some();
         let (title, button) = if app.is_updating() {
-            (format!("Mengunduh Kara DM {}… Aplikasi akan dibuka ulang setelah dipasang.", r.version), "")
+            (format!("Downloading Kara DM {}… The app reopens after installing.", r.version), "")
         } else if installs {
-            (format!("Kara DM {} tersedia.", r.version), "Perbarui sekarang")
+            (format!("Kara DM {} is available.", r.version), "Update now")
         } else {
-            (format!("Kara DM {} tersedia.", r.version), "Lihat rilis")
+            (format!("Kara DM {} is available.", r.version), "View release")
         };
         self.update.set_title(&title);
         self.update.set_button_label(Some(button).filter(|b| !b.is_empty()));
@@ -465,14 +465,14 @@ impl MainWindow {
         let active = items.iter().filter(|i| i.status == Status::Active).count();
         let speed: u64 = items.iter().map(|i| i.speed).sum();
         self.speed.set_label(&match aria_error {
-            Some(e) => format!("Mesin aria2 tidak jalan: {e}"),
-            None if active > 0 => format!("↓ {}   ·   {active} aktif", model::fmt_speed(speed)),
-            None => "Siap".into(),
+            Some(e) => format!("aria2 engine is not running: {e}"),
+            None if active > 0 => format!("↓ {}   ·   {active} active", model::fmt_speed(speed)),
+            None => "Ready".into(),
         });
         self.ext.set_label(&match (ext_error, connections) {
-            (Some(e), _) => format!("Tangkapan browser mati: {e}"),
-            (None, 0) => "Ekstensi browser: belum terhubung (terhubung saat unduhan pertama)".into(),
-            (None, n) => format!("Ekstensi browser: terhubung ({n})"),
+            (Some(e), _) => format!("Browser catching is off: {e}"),
+            (None, 0) => "Browser extension: not connected yet (connects on the first download)".into(),
+            (None, n) => format!("Browser extension: connected ({n})"),
         });
     }
 }
@@ -544,7 +544,7 @@ impl ProgressWindow {
     pub fn new(app: &Rc<App>, it: &Item) -> Rc<ProgressWindow> {
         let win = adw::Window::builder()
             .application(&app.gapp)
-            .title(format!("Unduhan: {}", it.display_name()))
+            .title(format!("Download: {}", it.display_name()))
             .default_width(560)
             .resizable(false)
             .build();
@@ -571,7 +571,7 @@ impl ProgressWindow {
             l.add_css_class("numeric");
             l
         });
-        for (i, t) in ["Status", "Ukuran", "Terunduh", "Kecepatan", "Sisa waktu", "Koneksi"].iter().enumerate() {
+        for (i, t) in ["Status", "Size", "Downloaded", "Speed", "Time left", "Connections"].iter().enumerate() {
             let k = gtk::Label::builder().label(*t).xalign(0.0).build();
             k.add_css_class("dim-label");
             let (col, row) = ((i % 2) as i32 * 2, (i / 2) as i32);
@@ -589,18 +589,18 @@ impl ProgressWindow {
         b.append(&error);
 
         let running = gtk::Box::builder().spacing(8).halign(gtk::Align::End).build();
-        let pause = gtk::Button::with_label("Jeda");
-        let cancel = gtk::Button::with_label("Batalkan…");
+        let pause = gtk::Button::with_label("Pause");
+        let cancel = gtk::Button::with_label("Cancel…");
         cancel.add_css_class("destructive-action");
-        let hide = gtk::Button::with_label("Sembunyikan");
+        let hide = gtk::Button::with_label("Hide");
         running.append(&cancel);
         running.append(&pause);
         running.append(&hide);
         let done = gtk::Box::builder().spacing(8).halign(gtk::Align::End).visible(false).build();
-        let open = gtk::Button::with_label("Buka");
+        let open = gtk::Button::with_label("Open");
         open.add_css_class("suggested-action");
-        let folder = gtk::Button::with_label("Buka folder");
-        let close = gtk::Button::with_label("Tutup");
+        let folder = gtk::Button::with_label("Open folder");
+        let close = gtk::Button::with_label("Close");
         done.append(&close);
         done.append(&folder);
         done.append(&open);
@@ -660,7 +660,7 @@ impl ProgressWindow {
         let f = it.fraction();
         let v = [
             it.status.label().to_string(),
-            if it.size > 0 { model::fmt_size(it.size) } else { "tidak diketahui".into() },
+            if it.size > 0 { model::fmt_size(it.size) } else { "unknown".into() },
             format!("{} ({:.1}%)", model::fmt_size(it.done), f * 100.0),
             model::fmt_speed(it.speed),
             model::fmt_eta(it.eta()),
@@ -677,7 +677,7 @@ impl ProgressWindow {
             self.bar.set_fraction(f);
         }
         self.bar.set_text(Some(&format!("{:.0}%", f * 100.0)));
-        self.pause.set_label(if matches!(it.status, Status::Active | Status::Waiting) { "Jeda" } else { "Lanjutkan" });
+        self.pause.set_label(if matches!(it.status, Status::Active | Status::Waiting) { "Pause" } else { "Resume" });
         self.pause.set_sensitive(it.status != Status::Merging);
         self.error.set_visible(it.status == Status::Error);
         self.error.set_label(&it.error);
@@ -691,27 +691,27 @@ impl ProgressWindow {
 pub fn settings_dialog(app: &Rc<App>, parent: &impl IsA<gtk::Widget>) {
     let s = app.settings.borrow().clone();
     let dialog = adw::PreferencesDialog::new();
-    dialog.set_title("Pengaturan");
+    dialog.set_title("Settings");
     let page = adw::PreferencesPage::new();
 
     let g = adw::PreferencesGroup::builder()
-        .title("Unduhan")
+        .title("Downloads")
         .description(
-            "Selama diunduh, berkas ada di subfolder \"temp\" folder ini, lalu dipindah ke sini begitu selesai.",
+            "While downloading, files are kept in this folder's \"temp\" subfolder and moved here once complete.",
         )
         .build();
     let dir = Rc::new(RefCell::new(s.download_dir.clone()));
-    let dir_row = adw::ActionRow::builder().title("Folder unduhan").subtitle(s.dir().to_string_lossy()).build();
+    let dir_row = adw::ActionRow::builder().title("Download folder").subtitle(s.dir().to_string_lossy()).build();
     let pick = gtk::Button::builder()
         .icon_name("folder-open-symbolic")
         .valign(gtk::Align::Center)
-        .tooltip_text("Pilih folder")
+        .tooltip_text("Choose folder")
         .build();
     pick.add_css_class("flat");
     {
         let (dir, dir_row, d) = (dir.clone(), dir_row.clone(), dialog.clone());
         pick.connect_clicked(move |_| {
-            let fd = gtk::FileDialog::builder().title("Pilih folder unduhan").build();
+            let fd = gtk::FileDialog::builder().title("Choose download folder").build();
             let (dir, dir_row) = (dir.clone(), dir_row.clone());
             let root = d.root().and_then(|r| r.downcast::<gtk::Window>().ok());
             fd.select_folder(root.as_ref(), gio::Cancellable::NONE, move |res| {
@@ -726,43 +726,45 @@ pub fn settings_dialog(app: &Rc<App>, parent: &impl IsA<gtk::Widget>) {
     dir_row.add_suffix(&pick);
     g.add(&dir_row);
     let conns = adw::SpinRow::with_range(1.0, 16.0, 1.0);
-    conns.set_title("Koneksi per berkas");
-    conns.set_subtitle("Jumlah segmen paralel (maks 16)");
+    conns.set_title("Connections per file");
+    conns.set_subtitle("Parallel segments (max 16)");
     conns.set_value(s.connections as f64);
     g.add(&conns);
     let conc = adw::SpinRow::with_range(1.0, 10.0, 1.0);
-    conc.set_title("Unduhan bersamaan");
+    conc.set_title("Simultaneous downloads");
     conc.set_value(s.max_concurrent as f64);
     g.add(&conc);
     let limit = adw::SpinRow::with_range(0.0, 1_000_000.0, 256.0);
-    limit.set_title("Batas kecepatan total (KB/s)");
-    limit.set_subtitle("0 = tanpa batas; berlaku langsung");
+    limit.set_title("Total speed limit (KB/s)");
+    limit.set_subtitle("0 = unlimited; applies immediately");
     limit.set_value(s.speed_limit_kib as f64);
     g.add(&limit);
     page.add(&g);
 
     let g2 = adw::PreferencesGroup::builder().title("Browser").build();
     let prog = adw::SwitchRow::builder()
-        .title("Tampilkan jendela progres untuk unduhan dari browser")
+        .title("Show a progress window for browser downloads")
         .active(s.show_progress_window)
         .build();
     let panel = adw::SwitchRow::builder()
-        .title("Panel tangkap video di halaman")
-        .subtitle("Berlaku saat ekstensi tersambung ulang")
+        .title("Video catch panel on pages")
+        .subtitle("Applies when the extension reconnects")
         .active(s.media_panel)
         .build();
-    let notify = adw::SwitchRow::builder().title("Notifikasi saat unduhan selesai").active(s.notify).build();
+    let notify = adw::SwitchRow::builder().title("Notify when a download completes").active(s.notify).build();
     g2.add(&prog);
     g2.add(&panel);
     g2.add(&notify);
     let ext_row = adw::ActionRow::builder()
-        .title("Ekstensi browser")
-        .subtitle("Pasang ekstensi Kara DM (Firefox, Chrome, Chromium); ekstensi Neat Download Manager juga didukung")
+        .title("Browser extension")
+        .subtitle(
+            "Install the Kara DM extension (Firefox, Chrome, Chromium); the Neat Download Manager extension also works",
+        )
         .build();
     let open = gtk::Button::builder()
         .icon_name("external-link-symbolic")
         .valign(gtk::Align::Center)
-        .tooltip_text("Buka halaman ekstensi")
+        .tooltip_text("Open the extension page")
         .build();
     open.add_css_class("flat");
     open.connect_clicked(|b| {
@@ -773,13 +775,13 @@ pub fn settings_dialog(app: &Rc<App>, parent: &impl IsA<gtk::Widget>) {
     g2.add(&ext_row);
     page.add(&g2);
 
-    let g3 = adw::PreferencesGroup::builder().title("Pembaruan").build();
+    let g3 = adw::PreferencesGroup::builder().title("Updates").build();
     let updates = adw::SwitchRow::builder()
-        .title("Periksa pembaruan otomatis")
+        .title("Check for updates automatically")
         .subtitle(if cfg!(windows) {
-            "Cek rilis baru di GitHub sehari sekali; pemasangan tetap menunggu persetujuan Anda"
+            "Checks GitHub for a new release once a day; installing still waits for you"
         } else {
-            "Cek rilis baru di GitHub sehari sekali dan beri tahu bila ada"
+            "Checks GitHub for a new release once a day and tells you"
         })
         .active(s.check_updates)
         .build();

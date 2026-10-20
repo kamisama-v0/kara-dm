@@ -46,7 +46,7 @@ pub fn request_flatpak_autostart() {
     }
     let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else { return };
     let opts = glib::VariantDict::new(None);
-    opts.insert_value("reason", &"Menangkap unduhan dari browser sejak login".to_variant());
+    opts.insert_value("reason", &"Catching browser downloads since sign-in".to_variant());
     opts.insert_value("autostart", &true.to_variant());
     opts.insert_value("commandline", &vec!["kara-dm".to_string(), "--service".to_string()].to_variant());
     let params = glib::Variant::tuple_from_iter(["".to_variant(), opts.end()]);

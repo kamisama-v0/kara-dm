@@ -145,17 +145,18 @@ fn unique_name(dirs: &[&Path], stem: &str, ext: &str) -> String {
     name
 }
 
-/// Template nama yt-dlp: judul + resolusi yang benar-benar terpilih, mis. `Judul [1080p].webm` atau
-/// `Judul [audio].m4a`. Video halaman (YouTube dll.) memakai judul dari yt-dlp sendiri, karena judul tab bisa
-/// basi di situs SPA; stream HLS/DASH memakai judul halaman.
+/// Template nama yt-dlp: judul sebagai slug + resolusi yang benar-benar terpilih, mis. `niki-tsunami-1080.webm`
+/// atau `niki-tsunami-audio.m4a`. Video halaman (YouTube dll.) memakai judul dari yt-dlp sendiri (dijadikan slug
+/// lewat `--replace-in-metadata`, lihat `ytdlp_job`), karena judul tab bisa basi di situs SPA; stream HLS/DASH
+/// memakai judul halaman.
 fn ytdlp_template(it: &Item) -> String {
     let name = if it.url == it.page {
         "%(title).150B".to_string()
     } else {
-        let t = protocol::title_stem(&it.title);
-        if t.is_empty() || t == "unduhan" { "video".into() } else { t.replace('%', "%%") }
+        let t = protocol::slug(&protocol::title_stem(&it.title));
+        if t.is_empty() || t == "download" { "video".into() } else { t }
     };
-    let res = if it.quality == "audio" { " [audio]" } else { "%(height& [{}p]|)s" };
+    let res = if it.quality == "audio" { "-audio" } else { "%(height&-{}|)s" };
     format!("{name}{res}.%(ext)s")
 }
 
@@ -214,8 +215,8 @@ impl App {
         });
         let ws_error = ws::start(tx.clone(), shared.clone()).err().map(|e| {
             if e.kind() == std::io::ErrorKind::AddrInUse {
-                "port 10007 sudah dipakai aplikasi lain (mis. Neat Download Manager); tutup aplikasi itu, Kara DM \
-                 mengambil alih otomatis"
+                "port 10007 is used by another app (e.g. Neat Download Manager); close that app and Kara DM \
+                 takes over automatically"
                     .to_string()
             } else {
                 e.to_string()
@@ -251,7 +252,7 @@ impl App {
         });
         for e in [app.aria_error.clone(), app.ws_error.borrow().clone()].iter().flatten() {
             eprintln!("kara-dm: {e}");
-            app.notify("Kara Download Manager bermasalah", e, None);
+            app.notify("Kara Download Manager has a problem", e, None);
         }
         {
             let app = app.clone();
@@ -288,7 +289,7 @@ impl App {
             quit.connect_activate(move |_, _| g.quit());
         }
         gapp.add_action(&quit);
-        // Klik notifikasi "Unduhan selesai" membuka foldernya.
+        // Klik notifikasi "Download complete" membuka foldernya.
         let open_path = gio::SimpleAction::new("open-path", Some(glib::VariantTy::STRING));
         open_path.connect_activate(|_, p| {
             if let Some(path) = p.and_then(|v| v.get::<String>()) {
@@ -374,7 +375,7 @@ impl App {
         match ev {
             Event::Extension(text) => match protocol::parse(&text) {
                 Ok(req) => self.add(req, true),
-                Err(e) => eprintln!("kara-dm: pesan ekstensi ditolak: {e}"),
+                Err(e) => eprintln!("kara-dm: extension message rejected: {e}"),
             },
             Event::Status(map) => self.apply_status(map),
             Event::JobProgress { id, done, total, speed } => {
@@ -399,7 +400,7 @@ impl App {
                 self.refresh_item(&id);
             }
             Event::WsReady => {
-                eprintln!("kara-dm: port 10007 terbuka, ekstensi browser bisa tersambung");
+                eprintln!("kara-dm: port 10007 is open, the browser extension can connect");
                 self.ws_error.replace(None);
                 self.refresh_summary();
             }
@@ -430,7 +431,11 @@ impl App {
             Ok(r) if update::is_newer(&r.version, current) => {
                 let first_notice = self.settings.borrow().notified_version != r.version;
                 if !manual && first_notice {
-                    self.notify("Pembaruan Kara DM tersedia", &format!("Versi {} siap dipasang.", r.version), None);
+                    self.notify(
+                        "Kara DM update available",
+                        &format!("Version {} is ready to install.", r.version),
+                        None,
+                    );
                     let mut s = self.settings.borrow().clone();
                     s.notified_version = r.version.clone();
                     let _ = s.save(&self.paths.settings);
@@ -444,10 +449,10 @@ impl App {
                     self.window().win.present();
                 }
             }
-            Ok(_) if manual => self.message("Kara DM sudah versi terbaru", &format!("Versi terpasang: {current}")),
+            Ok(_) if manual => self.message("Kara DM is up to date", &format!("Installed version: {current}")),
             Ok(_) => {}
-            Err(e) if manual => self.message("Gagal memeriksa pembaruan", &e),
-            Err(e) => eprintln!("kara-dm: cek pembaruan: {e}"),
+            Err(e) if manual => self.message("Could not check for updates", &e),
+            Err(e) => eprintln!("kara-dm: update check: {e}"),
         }
     }
 
@@ -491,7 +496,7 @@ impl App {
                 if let Some(w) = self.ui.borrow().clone() {
                     w.show_update(self);
                 }
-                self.message("Pembaruan gagal", &e);
+                self.message("Update failed", &e);
             }
         }
     }
@@ -525,10 +530,10 @@ impl App {
             quality: req.quality.clone(),
             ..Default::default()
         };
-        let media_stem = if title.is_empty() || title == "unduhan" { "video".to_string() } else { title.clone() };
+        let media_stem = if title.is_empty() || title == "download" { "video".to_string() } else { title.clone() };
         if req.method == "POST" {
             it.kind = Kind::Curl;
-            it.name = if base.is_empty() { "unduhan".into() } else { base };
+            it.name = if base.is_empty() { "download".into() } else { base };
         } else if req.url2.is_some() {
             it.kind = Kind::Mkv;
             it.name = unique_name(&dirs, &media_stem, "mkv");
@@ -564,7 +569,7 @@ impl App {
             if self.settings.borrow().show_progress_window {
                 self.show_progress(&id);
             } else if self.settings.borrow().notify {
-                self.notify("Mengunduh", &name, None);
+                self.notify("Downloading", &name, None);
             }
         }
     }
@@ -589,7 +594,7 @@ impl App {
             opts["out"] = json!(o);
         }
         let gid = aria.call("aria2.addUri", vec![json!([url]), opts])?;
-        gid.as_str().map(String::from).ok_or_else(|| "aria2 tidak mengembalikan gid".into())
+        gid.as_str().map(String::from).ok_or_else(|| "aria2 returned no gid".into())
     }
 
     fn start(&self, it: &mut Item) -> Result<(), String> {
@@ -636,6 +641,8 @@ impl App {
             "--progress-template",
             "download:KDM %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s",
             "--print", "after_move:filepath", "--print", "video:KDMNAME %(filename)s", "--windows-filenames",
+            // Judul jadi slug untuk nama berkas: "niki - tsunami" -> "niki-tsunami".
+            "--replace-in-metadata", "title", r"[^\w]+", "-", "--replace-in-metadata", "title", "^-+|-+$", "",
             "--user-agent",
         ]);
         cmd.arg(&self.ua);
@@ -821,7 +828,7 @@ impl App {
                         it.path = p.to_string_lossy().into_owned();
                     }
                     // Berkas tetap utuh di folder temp; "Buka folder" tetap menunjuk ke sana.
-                    Err(e) => eprintln!("kara-dm: gagal memindahkan {} dari folder temp: {e}", it.path),
+                    Err(e) => eprintln!("kara-dm: could not move {} out of the temp folder: {e}", it.path),
                 }
             }
             it.clone()
@@ -829,7 +836,7 @@ impl App {
             return;
         };
         if self.settings.borrow().notify {
-            self.notify("Unduhan selesai", &it.name, Some(&it.dir));
+            self.notify("Download complete", &it.name, Some(&it.dir));
         }
     }
 
@@ -859,7 +866,7 @@ impl App {
                         it.miss += 1;
                         if it.miss >= 3 {
                             it.status = Status::Error;
-                            it.error = "Tidak ada lagi di antrean aria2; klik Lanjutkan untuk mencoba lagi.".into();
+                            it.error = "No longer in the aria2 queue; click Resume to try again.".into();
                             it.speed = 0;
                         }
                     }
@@ -892,7 +899,7 @@ impl App {
                             .iter()
                             .filter_map(|s| s.get("errorMessage").and_then(Value::as_str))
                             .find(|m| !m.is_empty())
-                            .unwrap_or("galat")
+                            .unwrap_or("error")
                             .to_string();
                         Status::Error
                     } else if st.iter().all(|s| *s == "complete") {
@@ -927,7 +934,7 @@ impl App {
                     let cur = if it.conn_limit > 0 { it.conn_limit } else { global_conns };
                     it.conn_limit = (cur / 2).max(1);
                     it.auto_retries += 1;
-                    it.error = format!("Server membatasi koneksi, dilanjutkan dengan {} koneksi", it.conn_limit);
+                    it.error = format!("The server limits connections; continuing with {} connections", it.conn_limit);
                     retry.push(it.id.clone());
                 }
                 if it.status != old {
@@ -1043,7 +1050,7 @@ impl App {
             let paused_in_aria = it.status == Status::Paused && matches!(it.kind, Kind::Aria2 | Kind::Mkv);
             let res = if paused_in_aria {
                 match aria.as_ref() {
-                    None => Err("aria2 tidak jalan".to_string()),
+                    None => Err("aria2 is not running".to_string()),
                     Some(a) => it.gids.iter().try_for_each(|g| match a.call("aria2.unpause", vec![json!(g)]) {
                         Ok(_) => Ok(()),
                         Err(e) if e.contains("cannot be unpaused") || e.contains("is not found") => Ok(()),
@@ -1098,10 +1105,10 @@ impl App {
         let body = if ids.len() == 1 {
             self.item(&ids[0]).map(|i| i.display_name().to_string()).unwrap_or_default()
         } else {
-            format!("{} unduhan dipilih", ids.len())
+            format!("{} downloads selected", ids.len())
         };
-        let d = adw::AlertDialog::new(Some("Hapus unduhan?"), Some(&body));
-        d.add_responses(&[("cancel", "Batal"), ("list", "Hapus dari daftar"), ("files", "Hapus beserta berkas")]);
+        let d = adw::AlertDialog::new(Some("Remove download?"), Some(&body));
+        d.add_responses(&[("cancel", "Cancel"), ("list", "Remove from list"), ("files", "Remove with files")]);
         d.set_response_appearance("files", adw::ResponseAppearance::Destructive);
         d.set_close_response("cancel");
         d.set_default_response(Some("list"));
@@ -1217,12 +1224,9 @@ impl App {
                 }
             });
         }
-        let d = adw::AlertDialog::new(
-            Some("Tambah unduhan"),
-            Some("Tempel satu URL per baris tidak didukung; satu URL saja."),
-        );
+        let d = adw::AlertDialog::new(Some("Add download"), Some("Paste one URL."));
         d.set_body("");
-        d.add_responses(&[("cancel", "Batal"), ("add", "Unduh")]);
+        d.add_responses(&[("cancel", "Cancel"), ("add", "Download")]);
         d.set_response_appearance("add", adw::ResponseAppearance::Suggested);
         d.set_default_response(Some("add"));
         d.set_close_response("cancel");
@@ -1232,7 +1236,7 @@ impl App {
             if r == "add" {
                 match protocol::Request::from_url(&entry.text()) {
                     Ok(req) => app.add(req, false),
-                    Err(e) => app.notify("URL tidak valid", &e, None),
+                    Err(e) => app.notify("Invalid URL", &e, None),
                 }
             }
         });
@@ -1247,7 +1251,7 @@ impl App {
     fn apply_settings(&self, s: Settings) {
         let _ = std::fs::create_dir_all(s.dir());
         if let Err(e) = s.save(&self.paths.settings) {
-            eprintln!("kara-dm: simpan pengaturan: {e}");
+            eprintln!("kara-dm: save settings: {e}");
         }
         self.shared.media_panel.store(s.media_panel, Ordering::SeqCst);
         if let Some(a) = &self.aria {
@@ -1272,7 +1276,7 @@ fn selftest_download(a: &aria2::Aria2, url: &str, dir: &Path) -> bool {
     let gid = match a.call("aria2.addUri", vec![json!([url]), opts]) {
         Ok(Value::String(g)) => g,
         other => {
-            println!("unduhan uji: GAGAL menambah ({other:?})");
+            println!("test download: FAILED to add ({other:?})");
             return false;
         }
     };
@@ -1281,17 +1285,17 @@ fn selftest_download(a: &aria2::Aria2, url: &str, dir: &Path) -> bool {
         let Ok(s) = a.call("aria2.tellStatus", vec![json!(gid)]) else { continue };
         match s.get("status").and_then(Value::as_str) {
             Some("complete") => {
-                println!("unduhan uji: OK {} byte", num(&s, "completedLength"));
+                println!("test download: OK {} bytes", num(&s, "completedLength"));
                 return true;
             }
             Some("error") => {
-                println!("unduhan uji: GAGAL {}", s.get("errorMessage").and_then(Value::as_str).unwrap_or("?"));
+                println!("test download: FAILED {}", s.get("errorMessage").and_then(Value::as_str).unwrap_or("?"));
                 return false;
             }
             _ => {}
         }
     }
-    println!("unduhan uji: GAGAL waktu habis");
+    println!("test download: FAILED, timed out");
     false
 }
 
@@ -1299,7 +1303,7 @@ fn selftest_download(a: &aria2::Aria2, url: &str, dir: &Path) -> bool {
 fn selftest() -> glib::ExitCode {
     let dir = std::env::temp_dir().join(format!("kara-dm-selftest-{}", std::process::id()));
     if let Err(e) = platform::create_private_dir(&dir) {
-        println!("folder uji: GAGAL {e}");
+        println!("test folder: FAILED {e}");
         return glib::ExitCode::FAILURE;
     }
     let ua = platform::user_agent();
@@ -1320,12 +1324,12 @@ fn selftest() -> glib::ExitCode {
                 true
             }
             Err(e) => {
-                println!("aria2: GAGAL {e}");
+                println!("aria2: FAILED {e}");
                 false
             }
         },
         Err(e) => {
-            println!("aria2: GAGAL {e}");
+            println!("aria2: FAILED {e}");
             false
         }
     };
@@ -1337,12 +1341,12 @@ fn selftest() -> glib::ExitCode {
     let shared = Arc::new(ws::Shared { connections: AtomicUsize::new(0), media_panel: AtomicBool::new(true) });
     match ws::start(tx, shared) {
         Ok(()) => println!("websocket: OK 127.0.0.1:{}", protocol::PORT),
-        Err(e) => println!("websocket: tidak bisa membuka port {} ({e})", protocol::PORT),
+        Err(e) => println!("websocket: could not open port {} ({e})", protocol::PORT),
     }
     for t in ["yt-dlp", "ffmpeg", "curl"] {
-        println!("{t}: {}", if platform::has_tool(t) { "ada" } else { "tidak ada (fitur terkait nonaktif)" });
+        println!("{t}: {}", if platform::has_tool(t) { "found" } else { "missing (related features off)" });
     }
-    println!("folder unduhan: {}", Settings::default().dir().display());
+    println!("download folder: {}", Settings::default().dir().display());
     if let Ok(a) = aria {
         a.shutdown();
     }
@@ -1374,7 +1378,7 @@ fn main() -> glib::ExitCode {
         gapp.connect_startup(move |g| match App::new(g) {
             Ok(a) => *state.borrow_mut() = Some(a),
             Err(e) => {
-                eprintln!("kara-dm: gagal mulai: {e}");
+                eprintln!("kara-dm: could not start: {e}");
                 g.quit();
             }
         });
@@ -1407,18 +1411,18 @@ mod tests {
     fn ytdlp_names_carry_title_and_resolution() {
         let page = "https://www.youtube.com/watch?v=x";
         let mut it = Item { url: page.into(), page: page.into(), title: "Basi - YouTube".into(), ..Default::default() };
-        assert_eq!(ytdlp_template(&it), "%(title).150B%(height& [{}p]|)s.%(ext)s");
+        assert_eq!(ytdlp_template(&it), "%(title).150B%(height&-{}|)s.%(ext)s");
         it.quality = "audio".into();
-        assert_eq!(ytdlp_template(&it), "%(title).150B [audio].%(ext)s");
+        assert_eq!(ytdlp_template(&it), "%(title).150B-audio.%(ext)s");
         let hls = Item {
             url: "https://cdn.x/master.m3u8".into(),
-            page: "https://x/tonton".into(),
-            title: "Diskon 100% - YouTube".into(),
+            page: "https://x/watch".into(),
+            title: "niki - Tsunami (100% live) - YouTube".into(),
             ..Default::default()
         };
-        assert_eq!(ytdlp_template(&hls), "Diskon 100%%%(height& [{}p]|)s.%(ext)s");
+        assert_eq!(ytdlp_template(&hls), "niki-Tsunami-100-live%(height&-{}|)s.%(ext)s");
         let untitled = Item { url: "https://cdn.x/a.m3u8".into(), ..Default::default() };
-        assert_eq!(ytdlp_template(&untitled), "video%(height& [{}p]|)s.%(ext)s");
+        assert_eq!(ytdlp_template(&untitled), "video%(height&-{}|)s.%(ext)s");
     }
 
     #[test]

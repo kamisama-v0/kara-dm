@@ -8,7 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 - yt-dlp downloads (YouTube and other page videos) are named after the video's own title plus the resolution
-  actually downloaded, e.g. `Title [1080p].webm` or `Title [audio].webm`; the name shows in the list as soon as
+  actually downloaded, as a dash-separated slug: "niki - Tsunami" at 1080p becomes `niki-Tsunami-1080.webm`,
+  audio only `niki-Tsunami-audio.m4a`; the name shows in the list as soon as
   the format is chosen.
 - Windows: FFmpeg 8.1.3 (LGPL build) is bundled in `ffmpeg\`, so YouTube video and audio are merged into one file.
 
@@ -23,6 +24,9 @@ All notable changes to this project are documented here. The format follows
   size), and media is labelled simply "Video" or "Audio" (audio used to show as "MP3 video").
 
 ### Changed
+- The desktop app is in English (menus, settings, progress window, notifications, messages and categories).
+- The extension's video menu and popup show the video's title instead of "This page's video".
+- Audio only prefers `.m4a`, so it lands in the Music category and plays everywhere.
 - Browser extension: the whole interface (popup, video button menu, settings, "Download links" page, right-click
   menu and notifications) is in English.
 - Windows: YouTube videos above 360p were saved as two separate files (`.fNNN.mp4` video and `.fNNN.webm` audio)

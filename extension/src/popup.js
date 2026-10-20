@@ -76,7 +76,7 @@ async function main() {
     const row = document.createElement("div");
     row.className = "row";
     row.tabIndex = 0;
-    const name = it.page ? it.label : it.url.split("?")[0].split("/").pop() || it.label;
+    const name = it.page ? K.pageTitle(it) : it.url.split("?")[0].split("/").pop() || it.label;
     const sub = it.kind === "hls" ? streamSub(it) : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
     const grow = el("span", "grow");
     const title = el("div", "ellipsis");

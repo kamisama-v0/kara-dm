@@ -198,7 +198,7 @@
     const streams = [];
     const streamSub = (it) => (it.page ? "Video + audio · " : it.label + " · ") + K.qualityLabel(quality);
     const rows = items.map((it) => {
-      const name = it.page ? it.label : decodeName(it.url);
+      const name = it.page ? K.pageTitle(it) : decodeName(it.url);
       const sub = it.kind === "hls" ? streamSub(it) : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
       const el = row(name, sub, async (st) => {
         st.textContent = "…";

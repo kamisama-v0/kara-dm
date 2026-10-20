@@ -67,7 +67,7 @@ impl Aria2 {
         let _ = fs::remove_file(&conf);
         platform::create_private_file(&conf)
             .and_then(|mut f| f.write_all(conf_text.as_bytes()))
-            .map_err(|e| format!("tulis {}: {e}", conf.display()))?;
+            .map_err(|e| format!("write {}: {e}", conf.display()))?;
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .timeout_global(Some(Duration::from_secs(5)))
@@ -98,7 +98,7 @@ impl Aria2 {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .spawn()
-            .map_err(|e| format!("aria2c tidak bisa dijalankan: {e}"))?;
+            .map_err(|e| format!("aria2c could not be started: {e}"))?;
         *self.child.lock().unwrap() = Some(child);
         Ok(())
     }
@@ -108,7 +108,7 @@ impl Aria2 {
         loop {
             match self.call("aria2.getVersion", vec![]) {
                 Ok(_) => return Ok(()),
-                Err(e) if t0.elapsed() > Duration::from_secs(8) => return Err(format!("aria2 tidak merespons: {e}")),
+                Err(e) if t0.elapsed() > Duration::from_secs(8) => return Err(format!("aria2 is not responding: {e}")),
                 Err(_) => std::thread::sleep(Duration::from_millis(100)),
             }
         }
@@ -123,7 +123,7 @@ impl Aria2 {
                 None => false,
             };
             if exited && !self.stopping.load(Ordering::SeqCst) {
-                eprintln!("kara-dm: aria2c berhenti, dijalankan ulang");
+                eprintln!("kara-dm: aria2c stopped, restarting it");
                 std::thread::sleep(Duration::from_secs(2));
                 if self.spawn().is_ok() {
                     let _ = self.wait_ready();
@@ -156,7 +156,7 @@ impl Aria2 {
             .into_iter()
             .map(|r| match r {
                 Value::Array(mut a) if !a.is_empty() => Ok(a.remove(0)),
-                other => Err(other.get("message").and_then(Value::as_str).unwrap_or("galat aria2").to_string()),
+                other => Err(other.get("message").and_then(Value::as_str).unwrap_or("aria2 error").to_string()),
             })
             .collect())
     }
@@ -165,7 +165,7 @@ impl Aria2 {
         let mut resp = self.agent.post(&self.url).send_json(&body).map_err(|e| e.to_string())?;
         let v: Value = resp.body_mut().read_json().map_err(|e| e.to_string())?;
         if let Some(err) = v.get("error") {
-            return Err(err.get("message").and_then(Value::as_str).unwrap_or("galat aria2").to_string());
+            return Err(err.get("message").and_then(Value::as_str).unwrap_or("aria2 error").to_string());
         }
         Ok(v.get("result").cloned().unwrap_or(Value::Null))
     }
