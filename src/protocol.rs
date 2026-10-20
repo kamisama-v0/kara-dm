@@ -108,6 +108,69 @@ pub fn ytdlp_format_args(quality: &str) -> Vec<String> {
     }
 }
 
+/// Halaman "Google Drive can't scan this file for viruses" yang dikirim Google alih-alih berkas besar. Token `at`
+/// di URL dari browser hanya berlaku sekali (sudah dipakai Firefox), jadi permintaan aria2 mendapat halaman ini
+/// lagi berisi token baru. Kembalikan URL unduhan dari formulirnya, hanya bila tujuannya tetap Google Drive.
+pub fn drive_confirm_url(html: &str) -> Option<String> {
+    let form_start = html.find("id=\"download-form\"")?;
+    let tag_open = html[..form_start].rfind("<form")?;
+    let form = &html[tag_open..];
+    let form = &form[..form.find("</form>").unwrap_or(form.len())];
+    let action = html_unescape(attr(&form[..form.find('>')?], "action")?);
+    if !action.starts_with("https://drive.usercontent.google.com/") || action.contains(['?', '#']) {
+        return None;
+    }
+    let mut query = vec![];
+    for input in form.split("<input").skip(1) {
+        let tag = &input[..input.find('>').unwrap_or(input.len())];
+        if let (Some(name), Some(value)) = (attr(tag, "name"), attr(tag, "value")) {
+            query.push(format!("{}={}", percent_encode(&html_unescape(name)), percent_encode(&html_unescape(value))));
+        }
+    }
+    (!query.is_empty()).then(|| format!("{action}?{}", query.join("&")))
+}
+
+/// Awal berkas berupa halaman HTML (bukan berkas biner/teks yang memang diminta).
+pub fn is_html(text: &str) -> bool {
+    let head: String = text.trim_start().chars().take(64).collect::<String>().to_ascii_lowercase();
+    head.starts_with("<!doctype html") || head.starts_with("<html")
+}
+
+/// Pesan untuk halaman error Google Drive, dari judulnya (mis. "Quota exceeded").
+pub fn drive_page_error(html: &str) -> String {
+    let title = html
+        .find("<title>")
+        .and_then(|s| html[s + 7..].find("</title>").map(|e| &html[s + 7..s + 7 + e]))
+        .map(|t| html_unescape(t.trim().trim_start_matches("Google Drive - ")))
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| "halaman tak dikenal".into());
+    let hint = if title.to_ascii_lowercase().contains("quota") {
+        ". Berkas terlalu sering diunduh; coba lagi nanti (bisa sampai 24 jam) atau unduh dari salinannya (Make a copy)"
+    } else {
+        ""
+    };
+    format!("Google Drive menolak unduhan: {title}{hint}")
+}
+
+fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let key = format!(" {name}=\"");
+    let start = tag.find(&key)? + key.len();
+    Some(&tag[start..start + tag[start..].find('"')?])
+}
+
+fn html_unescape(s: &str) -> String {
+    s.replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+}
+
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
 pub fn valid_url(u: &str) -> bool {
     let l = u.to_ascii_lowercase();
     (l.starts_with("http://") || l.starts_with("https://") || l.starts_with("ftp://"))
@@ -269,6 +332,25 @@ mod tests {
         assert_eq!((r.quality.as_str(), r.batch), ("", false));
         assert!(ytdlp_format_args(&r.quality).is_empty());
         assert!(r.headers.is_empty());
+    }
+
+    #[test]
+    fn drive_virus_warning_page_gives_fresh_url() {
+        let page = r#"<html><body>Google Drive can't scan this file for viruses.<form id="download-form" action="https://drive.usercontent.google.com/download" method="get"><input type="submit" id="uc-download-link" class="goog-inline-block jfk-button jfk-button-action" value="Download anyway"/><input type="hidden" name="id" value="10xD5abc"><input type="hidden" name="export" value="download"><input type="hidden" name="authuser" value="2"><input type="hidden" name="confirm" value="t"><input type="hidden" name="uuid" value="815d2b63-384e"><input type="hidden" name="at" value="AMrW+x/y:179&amp;z"></form></body></html>"#;
+        assert_eq!(
+            drive_confirm_url(page).as_deref(),
+            Some(
+                "https://drive.usercontent.google.com/download?id=10xD5abc&export=download&authuser=2&confirm=t&uuid=815d2b63-384e&at=AMrW%2Bx%2Fy%3A179%26z"
+            )
+        );
+        assert_eq!(drive_confirm_url(&page.replace("drive.usercontent.google.com", "evil.example")), None);
+        assert_eq!(drive_confirm_url("<html>berkas biasa</html>"), None);
+        assert!(is_html(page) && is_html("  <!DOCTYPE html><html>") && !is_html("PK\u{3}\u{4}zip"));
+        let quota = "<!DOCTYPE html><html><head><title>Google Drive - Quota exceeded</title></head><body>Too many users</body></html>";
+        assert!(
+            drive_page_error(quota).starts_with("Google Drive menolak unduhan: Quota exceeded. Berkas terlalu sering")
+        );
+        assert_eq!(drive_confirm_url(quota), None);
     }
 
     #[test]

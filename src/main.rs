@@ -769,6 +769,47 @@ impl App {
         }
     }
 
+    /// Unduhan Google Drive yang ternyata halaman "can't scan this file for viruses" (token sekali pakai di URL
+    /// browser sudah terpakai): hapus halaman itu dan unduh ulang lewat formulirnya, yang membawa token baru.
+    /// Halaman lain dari Drive (mis. "Quota exceeded") bukan berkasnya: unduhan ditandai gagal dengan pesan Google,
+    /// bukan "selesai" dengan berkas HTML 2 KB. `true` = sudah ditangani di sini.
+    fn retry_drive_warning(&self, id: &str) -> bool {
+        let Some(it) = self.item(id) else { return false };
+        if it.kind != Kind::Aria2 || protocol::url_host(&it.url) != "drive.usercontent.google.com" {
+            return false;
+        }
+        let small = std::fs::metadata(&it.path).is_ok_and(|m| m.len() < 64 * 1024);
+        let Some(html) =
+            small.then(|| std::fs::read_to_string(&it.path).ok()).flatten().filter(|t| protocol::is_html(t))
+        else {
+            return false;
+        };
+        let _ = std::fs::remove_file(&it.path);
+        match protocol::drive_confirm_url(&html).filter(|_| it.auto_retries < 2) {
+            Some(url) => {
+                self.with_item(id, |it| {
+                    it.url = url;
+                    it.path.clear();
+                    it.name.clear();
+                    it.finished = 0;
+                    it.auto_retries += 1;
+                    it.status = Status::Error;
+                });
+                self.resume(&[id.to_string()]);
+            }
+            None => {
+                self.with_item(id, |it| {
+                    it.status = Status::Error;
+                    it.error = protocol::drive_page_error(&html);
+                    it.path.clear();
+                    it.speed = 0;
+                });
+                self.refresh_item(id);
+            }
+        }
+        true
+    }
+
     fn completed(&self, id: &str) {
         let Some(it) = self.with_item(id, |it| {
             it.finished = model::now();
@@ -916,7 +957,9 @@ impl App {
             }
         }
         for id in &done {
-            self.completed(id);
+            if !self.retry_drive_warning(id) {
+                self.completed(id);
+            }
         }
         for id in &merge {
             self.start_merge(id);
