@@ -24,7 +24,7 @@
 
 Kara Download Manager (kara-dm) splits each file into up to 16 parallel connections, resumes downloads after
 network drops and restarts, and takes over downloads from your browser through the **Kara DM** extension for
-Firefox, Chrome and Chromium. It is built with Rust, GTK 4 and libadwaita, and uses
+Firefox, Chrome and Chromium. It is built with Rust and [iced](https://iced.rs) (about 10 MB of memory), and uses
 [aria2](https://aria2.github.io/) as its download engine.
 
 It is also compatible with the browser extension of [Neat Download Manager](https://www.neatdownloadmanager.com/)
@@ -68,10 +68,10 @@ flatpak install --user kara-dm-linux-x86_64.flatpak
 
 On first start it asks permission to run in the background at login, so it can catch browser downloads.
 
-**From source** (Arch, Fedora 41+, or any distribution with GTK ≥ 4.16 and libadwaita ≥ 1.6):
+**From source** (any distribution with Rust and aria2; no GTK needed):
 
 ```bash
-# Arch: sudo pacman -S --needed rust gtk4 libadwaita aria2 yt-dlp ffmpeg
+# Arch: sudo pacman -S --needed rust aria2 yt-dlp ffmpeg
 git clone https://github.com/kamisama-v0/kara-dm && cd kara-dm
 ./install.sh   # builds, installs to ~/.local, enables a systemd user service
 ```

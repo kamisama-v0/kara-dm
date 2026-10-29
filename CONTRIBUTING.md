@@ -18,14 +18,16 @@ Security problems: please do **not** open a public issue, see [SECURITY.md](SECU
 
 | Path | What |
 | --- | --- |
-| `src/main.rs` | app state, download flow (aria2 / yt-dlp / curl / ffmpeg), polling, persistence, CLI |
+| `src/main.rs` | CLI, renderer choice, start-up |
+| `src/engine.rs` | app state, download flow (aria2 / yt-dlp / curl / ffmpeg), polling, persistence |
+| `src/gui.rs` | iced windows, menus and dialogs (headless UI tests at the bottom) |
+| `src/tray.rs` | notification-area icon (Windows) |
 | `src/protocol.rs` | browser-extension message parser and file-name rules (unit-tested) |
 | `src/ws.rs` | WebSocket server on `127.0.0.1:10007` (origin check) |
 | `src/aria2.rs` | aria2 child process + JSON-RPC client |
 | `src/jobs.rs` | external jobs (yt-dlp, curl, ffmpeg) |
-| `src/ui.rs` | GTK 4 / libadwaita windows and dialogs |
-| `src/platform.rs` | OS differences (folders, private files, bundled tools, notifications) |
-| `src/instance.rs` | single-instance forwarding on Windows |
+| `src/platform.rs` | OS differences (folders, private files, bundled tools, notifications, window styling) |
+| `src/instance.rs` | single-instance forwarding over `127.0.0.1:10008` |
 | `extension/` | Kara DM browser extension (Manifest V3, Firefox + Chromium) |
 | `data/` | desktop file, AppStream metainfo, app icon |
 | `packaging/` | Flatpak manifest, Windows bundle + installer |
@@ -35,13 +37,14 @@ Security problems: please do **not** open a public issue, see [SECURITY.md](SECU
 
 ### Linux
 
-You need Rust (stable), GTK ≥ 4.16, libadwaita ≥ 1.6 and aria2; yt-dlp, ffmpeg and curl are optional.
+You need Rust (stable) and aria2; yt-dlp, ffmpeg and curl are optional. The window uses Wayland or X11 from the
+system; no GUI toolkit packages are needed.
 
 ```bash
 # Arch
-sudo pacman -S --needed rust gtk4 libadwaita aria2 yt-dlp ffmpeg
-# Fedora 41+
-sudo dnf install cargo gtk4-devel libadwaita-devel aria2 yt-dlp ffmpeg-free
+sudo pacman -S --needed rust aria2 yt-dlp ffmpeg
+# Fedora
+sudo dnf install cargo aria2 yt-dlp ffmpeg-free
 
 cargo run                 # open the window (the app keeps running in the background after you close it)
 cargo run -- --selftest   # check aria2 + the browser port without a window
@@ -51,10 +54,10 @@ Stop a running instance with `kara-dm --quit` (or `cargo run -- --quit`) before 
 
 ### Windows
 
-Use [MSYS2](https://www.msys2.org/) in the **UCRT64** shell:
+Use the MSVC Rust toolchain (`rustup`, with the Visual Studio Build Tools). For a bundle, put the official
+aria2, yt-dlp and FFmpeg builds in `dist/windows/` as the release workflow does, then run from Git Bash:
 
 ```bash
-pacman -S --needed mingw-w64-ucrt-x86_64-{rust,pkgconf,gtk4,libadwaita,librsvg,adwaita-icon-theme,aria2}
 cargo run
 bash packaging/windows/bundle.sh   # self-contained folder in dist/windows/kara-dm
 ```
