@@ -1,6 +1,8 @@
 //! Ikon di area notifikasi (system tray). Klik kiri membuka jendela; klik kanan memberi menu Open / Settings /
 //! Quit. Hanya di Windows untuk sekarang: di Linux tray-icon butuh GTK + libappindicator.
 
+// Di Linux belum ada ikon tray, jadi aksi ini hanya dibuat di Windows.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub enum TrayAction {
     Open,
     Settings,
