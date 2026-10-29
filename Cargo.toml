@@ -26,6 +26,7 @@ ureq = { version = "3.4.2", default-features = false, features = ["json"] }
 window-vibrancy = "0.8.1"
 
 [target.'cfg(windows)'.dependencies]
+raw-window-handle = "0.6"
 tray-icon = "0.26.1"
 
 [target.'cfg(windows)'.build-dependencies]

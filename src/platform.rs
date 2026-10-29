@@ -162,3 +162,43 @@ pub fn reveal(path: &Path) {
         open(path.parent().unwrap_or(path));
     }
 }
+
+/// Jendela tanpa bingkai Windows (title bar digambar sendiri): pasang ikon aplikasi dari resource exe (taskbar,
+/// Alt-Tab) dan minta DWM membulatkan sudutnya seperti jendela Windows 11 biasa.
+#[cfg(windows)]
+pub fn style_window(hwnd: isize) {
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn LoadImageW(instance: isize, name: *const u16, kind: u32, cx: i32, cy: i32, flags: u32) -> isize;
+        fn SendMessageW(hwnd: isize, msg: u32, wparam: usize, lparam: isize) -> isize;
+        fn GetSystemMetrics(index: i32) -> i32;
+    }
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetModuleHandleW(name: *const u16) -> isize;
+    }
+    #[link(name = "dwmapi")]
+    unsafe extern "system" {
+        fn DwmSetWindowAttribute(hwnd: isize, attribute: u32, value: *const std::ffi::c_void, size: u32) -> i32;
+    }
+    const IMAGE_ICON: u32 = 1;
+    const LR_SHARED: u32 = 0x8000;
+    const WM_SETICON: u32 = 0x0080;
+    const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
+    const DWMWCP_ROUND: u32 = 2;
+    // SAFETY: hwnd milik jendela yang masih hidup (dipanggil dari window::run); resource ikon 1 disematkan build.rs
+    // dan dimuat bersama (LR_SHARED, tidak perlu dibebaskan); nilai atribut DWM berukuran 4 byte seperti yang diminta.
+    unsafe {
+        let instance = GetModuleHandleW(std::ptr::null());
+        // (ICON_SMALL, SM_CXSMICON), (ICON_BIG, SM_CXICON)
+        for (kind, metric) in [(0usize, 49), (1, 11)] {
+            let size = GetSystemMetrics(metric);
+            let icon = LoadImageW(instance, std::ptr::without_provenance::<u16>(1), IMAGE_ICON, size, size, LR_SHARED);
+            if icon != 0 {
+                SendMessageW(hwnd, WM_SETICON, kind, icon);
+            }
+        }
+        let round = DWMWCP_ROUND;
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, (&raw const round).cast(), 4);
+    }
+}

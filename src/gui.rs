@@ -15,7 +15,7 @@ use iced::widget::{
 };
 use iced::{
     Alignment, Background, Border, Color, Element, Event, Font, Length, Padding, Point, Shadow, Subscription, Task,
-    Theme, Vector, event, font, keyboard, window,
+    Theme, event, font, keyboard, window,
 };
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -33,7 +33,10 @@ pub fn run(engine: Engine, args: Vec<String>) -> iced::Result {
         .title(Gui::title)
         .subscription(Gui::subscription)
         .theme(|_: &Gui, _| theme())
-        .style(|_: &Gui, _: &Theme| iced::theme::Style { background_color: Color::TRANSPARENT, text_color: TEXT })
+        .style(|g: &Gui, _: &Theme| iced::theme::Style {
+            background_color: if g.glass() { Color::TRANSPARENT } else { BASE },
+            text_color: TEXT,
+        })
         .font(include_bytes!("../assets/fonts/Phosphor.ttf").as_slice())
         .default_font(UI)
         .run()
@@ -53,6 +56,9 @@ const ON_ACCENT: Color = Color::from_rgb(0.0, 0.075, 0.12);
 const DANGER: Color = Color::from_rgb(1.0, 0.60, 0.643);
 const OK: Color = Color::from_rgb(0.424, 0.796, 0.373);
 
+/// Latar jendela pekat (mode GPU), senada dengan Mica gelap.
+const BASE: Color = Color::from_rgb(0.118, 0.125, 0.145);
+
 fn white(a: f32) -> Color {
     Color::from_rgba(1.0, 1.0, 1.0, a)
 }
@@ -68,6 +74,8 @@ fn theme() -> Theme {
 // Ikon Phosphor (regular), kode karakter dari @phosphor-icons/web 2.1.2.
 mod ic {
     pub const ADD: char = '\u{e3d4}';
+    pub const MINUS: char = '\u{e32a}';
+    pub const X: char = '\u{e4f6}';
     pub const PLAY: char = '\u{e3d0}';
     pub const PAUSE: char = '\u{e39e}';
     pub const TRASH: char = '\u{e4a6}';
@@ -94,8 +102,18 @@ mod ic {
     pub const GLOBE: char = '\u{e288}';
 }
 
+/// Ikon dalam kotak persegi seukuran ikon, glyph di tengahnya: lebar glyph Phosphor tidak selalu sama dengan
+/// ukurannya, jadi tanpa kotak ini ikon bergeser di tombol dan tab.
 fn icon<'a>(c: char, size: u16) -> text::Text<'a> {
-    text(c.to_string()).font(ICONS).size(f32::from(size)).line_height(1.0)
+    let size = f32::from(size);
+    text(c.to_string())
+        .font(ICONS)
+        .size(size)
+        .line_height(1.0)
+        .width(size)
+        .height(size)
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Center)
 }
 
 fn sub<'a>(s: impl text::IntoFragment<'a>) -> text::Text<'a> {
@@ -127,18 +145,15 @@ fn layer() -> container::Style {
     }
 }
 
-/// Permukaan yang melayang (menu, dialog, tooltip): pekat, dengan bayangan.
+/// Permukaan yang melayang (menu, dialog, tooltip): pekat, dengan tepi yang tegas. Sengaja tanpa bayangan:
+/// renderer tiny-skia (iced 0.14) menggambar bayangan tanpa clip, jadi tiap gambar-ulang sebagian (hover, tick)
+/// menumpuk bayangan di atas area yang tidak dibersihkan dan dialog makin lama makin gelap.
 fn flyout(radius: f32) -> container::Style {
     container::Style {
-        background: Some(Background::Color(Color::from_rgba(0.17, 0.17, 0.18, 0.985))),
-        border: Border { color: white(0.10), width: 1.0, radius: radius.into() },
+        background: Some(Background::Color(Color::from_rgb(0.17, 0.17, 0.18))),
+        border: Border { color: white(0.14), width: 1.0, radius: radius.into() },
         text_color: Some(TEXT),
-        shadow: Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.40),
-            offset: Vector::new(0.0, 8.0),
-            blur_radius: 24.0,
-        },
-        snap: true,
+        ..Default::default()
     }
 }
 
@@ -295,6 +310,16 @@ pub struct Gui {
     hw_at_start: bool,
     /// Konfirmasi tombol Cancel di jendela progres (klik kedua menghapus beserta berkasnya).
     cancel_armed: HashSet<String>,
+    /// Kursor di atas tombol jendela (merah/kuning/hijau): simbolnya baru tampil saat itu, seperti di macOS.
+    lights_hover: Option<window::Id>,
+    settings_tab: SettingsTab,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SettingsTab {
+    Downloads,
+    Browser,
+    General,
 }
 
 #[derive(Debug, Clone)]
@@ -349,6 +374,14 @@ pub enum Msg {
     ProgressHide(window::Id),
     OpenFile(String),
     OpenFolder(String),
+    // title bar sendiri
+    Drag(window::Id),
+    CloseWin(window::Id),
+    DragResize(window::Id, window::Direction),
+    Zoom(window::Id),
+    Minimize(window::Id),
+    LightsHover(Option<window::Id>),
+    SettingsTab(SettingsTab),
     Noop,
 }
 
@@ -371,9 +404,18 @@ impl Gui {
             ctrl: false,
             hw_at_start,
             cancel_armed: HashSet::new(),
+            lights_hover: None,
+            settings_tab: SettingsTab::Downloads,
         };
         let task = gui.apply_effects();
         (gui, task)
+    }
+
+    /// Jendela kaca (transparan di atas blur OS) hanya dengan renderer software. iced_wgpu memilih mode alpha
+    /// PostMultiplied untuk permukaan transparan, sehingga lapisan putih tipis di atas Mica tampil terang dan pudar;
+    /// dengan GPU jendelanya dibuat pekat.
+    fn glass(&self) -> bool {
+        !self.hw_at_start
     }
 
     fn title(&self, id: window::Id) -> String {
@@ -408,19 +450,22 @@ impl Gui {
     // ---------- jendela ----------
 
     fn open_window(&mut self, kind: Win) -> (window::Id, Task<Msg>) {
+        // Tanpa bingkai OS: title bar (tombol merah/kuning/hijau, area seret) digambar sendiri ala macOS.
         let settings = match kind {
             Win::Main => window::Settings {
                 size: iced::Size::new(1040.0, 640.0),
                 min_size: Some(iced::Size::new(720.0, 420.0)),
-                transparent: true,
-                blur: true,
+                decorations: false,
+                transparent: self.glass(),
+                blur: self.glass(),
                 ..Default::default()
             },
             Win::Progress => window::Settings {
                 size: iced::Size::new(560.0, 340.0),
                 resizable: false,
-                transparent: true,
-                blur: true,
+                decorations: false,
+                transparent: self.glass(),
+                blur: self.glass(),
                 ..Default::default()
             },
         };
@@ -509,7 +554,10 @@ impl Gui {
                 }
                 Task::batch(tasks)
             }
-            Msg::Opened(id) => window::run(id, |w| apply_vibrancy(w)).map(|_| Msg::Noop),
+            Msg::Opened(id) => {
+                let glass = self.glass();
+                window::run(id, move |w| style_window(w, glass)).map(|_| Msg::Noop)
+            }
             Msg::Closed(id) => {
                 if self.main == Some(id) {
                     self.main = None;
@@ -776,6 +824,22 @@ impl Gui {
                 self.engine.open_folder(&id);
                 Task::none()
             }
+            Msg::Drag(w) => window::drag(w),
+            Msg::CloseWin(w) => window::close(w),
+            Msg::DragResize(w, d) => window::drag_resize(w, d),
+            Msg::Zoom(w) => window::toggle_maximize(w),
+            Msg::Minimize(w) => {
+                self.lights_hover = None;
+                window::minimize(w, true)
+            }
+            Msg::LightsHover(w) => {
+                self.lights_hover = w;
+                Task::none()
+            }
+            Msg::SettingsTab(t) => {
+                self.settings_tab = t;
+                Task::none()
+            }
             Msg::Noop => Task::none(),
         };
         Task::batch([task, self.apply_effects()])
@@ -819,18 +883,68 @@ impl Gui {
     fn view(&self, id: window::Id) -> Element<'_, Msg> {
         match self.windows.get(&id) {
             Some(Win::Progress) => self.progress_view(id),
-            _ => self.main_view(),
+            _ => self.main_view(id),
         }
     }
 
-    fn main_view(&self) -> Element<'_, Msg> {
-        let mut right = column![self.command_bar()].spacing(10);
+    /// Tombol jendela ala macOS: tutup (merah), kecilkan (kuning), perbesar (hijau; abu-abu bila jendela tidak bisa
+    /// diubah ukurannya). Simbolnya muncul saat kursor ada di atas grup tombol.
+    fn traffic_lights(&self, win: window::Id, close: Msg, zoom: bool) -> Element<'_, Msg> {
+        let show = self.lights_hover == Some(win);
+        let light = move |color: Color, glyph: char, msg: Option<Msg>| -> Element<'_, Msg> {
+            let enabled = msg.is_some();
+            let mark: Element<'_, Msg> = if show && enabled {
+                icon(glyph, 8).color(Color::from_rgba(0.0, 0.0, 0.0, 0.62)).into()
+            } else {
+                space().into()
+            };
+            button(container(mark).center(12))
+                .padding(0)
+                .width(12)
+                .height(12)
+                .on_press_maybe(msg)
+                .style(move |_, s| {
+                    let bg = match s {
+                        _ if !enabled => white(0.18),
+                        button::Status::Pressed => Color { a: 0.75, ..color },
+                        _ => color,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        text_color: TEXT,
+                        border: Border { color: Color::from_rgba(0.0, 0.0, 0.0, 0.18), width: 0.5, radius: 6.0.into() },
+                        shadow: Shadow::default(),
+                        snap: true,
+                    }
+                })
+                .into()
+        };
+        let lights = row![
+            light(Color::from_rgb8(0xFF, 0x5F, 0x57), ic::X, Some(close)),
+            light(Color::from_rgb8(0xFE, 0xBC, 0x2E), ic::MINUS, Some(Msg::Minimize(win))),
+            light(Color::from_rgb8(0x28, 0xC8, 0x40), ic::ADD, zoom.then_some(Msg::Zoom(win))),
+        ]
+        .spacing(8);
+        mouse_area(container(lights).padding([4, 0]))
+            .on_enter(Msg::LightsHover(Some(win)))
+            .on_exit(Msg::LightsHover(None))
+            .into()
+    }
+
+    /// Area seret jendela (pengganti title bar): seret untuk memindah, klik ganda untuk memperbesar.
+    fn drag_area<'a>(&self, win: window::Id, content: impl Into<Element<'a, Msg>>, zoom: bool) -> Element<'a, Msg> {
+        let area = mouse_area(content).on_press(Msg::Drag(win));
+        if zoom { area.on_double_click(Msg::Zoom(win)).into() } else { area.into() }
+    }
+
+    fn main_view(&self, win: window::Id) -> Element<'_, Msg> {
+        let mut right = column![self.drag_area(win, self.command_bar(), true)].spacing(10);
         if let Some(banner) = self.update_banner() {
             right = right.push(banner);
         }
         right = right.push(self.list());
         right = right.push(self.status_bar());
-        let base = row![self.nav(), right.width(Length::Fill).height(Length::Fill)].spacing(12).padding(Padding {
+        let base = row![self.nav(win), right.width(Length::Fill).height(Length::Fill)].spacing(12).padding(Padding {
             top: 10.0,
             right: 14.0,
             bottom: 10.0,
@@ -844,10 +958,11 @@ impl Gui {
         if let Some(m) = &self.modal {
             layers = layers.push(self.modal_view(m));
         }
+        layers = layers.push(resize_edges(win));
         mouse_area(layers).on_move(Msg::Cursor).into()
     }
 
-    fn nav(&self) -> Element<'_, Msg> {
+    fn nav(&self, win: window::Id) -> Element<'_, Msg> {
         let item = |key: &'static str, label: &'static str| -> Element<'_, Msg> {
             let n = self.engine.items.iter().filter(|it| matches(key, it)).count();
             let active = self.category == key;
@@ -882,13 +997,18 @@ impl Gui {
             .into()
         };
         let (status, kinds) = CATEGORIES.split_at(3);
-        let mut col = column![
+        let header = column![
+            container(self.traffic_lights(win, Msg::CloseWin(win), true))
+                .height(36)
+                .align_y(Alignment::Center)
+                .padding(Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 8.0 }),
             row![icon(ic::DOWNLOAD, 20).color(ACCENT), text("Kara DM").size(16).font(STRONG)]
                 .spacing(10)
                 .align_y(Alignment::Center)
-                .padding(Padding { top: 6.0, right: 0.0, bottom: 14.0, left: 10.0 }),
+                .padding(Padding { top: 10.0, right: 0.0, bottom: 14.0, left: 10.0 }),
         ]
-        .spacing(2);
+        .width(Length::Fill);
+        let mut col = column![self.drag_area(win, header, true)].spacing(2);
         for (key, label) in status {
             col = col.push(item(key, label));
         }
@@ -1330,9 +1450,38 @@ impl Gui {
             toggler(on).on_toggle(move |v| Msg::SetToggle(key, v)).size(20).into()
         };
         let hw_changed = s.hardware_acceleration != self.hw_at_start;
-        let content = column![
-            text("Settings").size(20).font(STRONG),
-            group(
+        // Tab ala Preferences macOS: tiap tab muat tanpa scroll.
+        let tab = |t: SettingsTab, glyph: char, label: &'a str| -> Element<'a, Msg> {
+            let active = self.settings_tab == t;
+            button(
+                column![icon(glyph, 20).color(if active { ACCENT } else { SUB }), text(label).size(12)]
+                    .spacing(4)
+                    .width(Length::Fill)
+                    .align_x(Alignment::Center),
+            )
+            .padding([6, 14])
+            .width(92)
+            .on_press(Msg::SettingsTab(t))
+            .style(move |_, st| {
+                let bg = if active {
+                    Some(white(0.08))
+                } else if matches!(st, button::Status::Hovered) {
+                    Some(white(0.045))
+                } else {
+                    None
+                };
+                btn_style(bg, if active { TEXT } else { SUB }, None)
+            })
+            .into()
+        };
+        let tabs = row![
+            tab(SettingsTab::Downloads, ic::DOWNLOAD, "Downloads"),
+            tab(SettingsTab::Browser, ic::GLOBE, "Browser"),
+            tab(SettingsTab::General, ic::GEAR, "General"),
+        ]
+        .spacing(4);
+        let page: Element<'a, Msg> = match self.settings_tab {
+            SettingsTab::Downloads => group(
                 "Downloads",
                 vec![
                     line(
@@ -1377,14 +1526,14 @@ impl Gui {
                     ),
                 ],
             ),
-            group(
+            SettingsTab::Browser => group(
                 "Browser",
                 vec![
                     line("Show a progress window for new downloads", "", switch("progress", s.show_progress_window)),
                     line(
                         "Download button on videos",
                         "Shown by the extension on video players",
-                        switch("panel", s.media_panel)
+                        switch("panel", s.media_panel),
                     ),
                     line("Notify when a download finishes", "", switch("notify", s.notify)),
                     line(
@@ -1394,26 +1543,31 @@ impl Gui {
                     ),
                 ],
             ),
-            group(
-                "Appearance",
-                vec![line(
-                    "Use hardware acceleration",
-                    "Draws with the GPU. Uses about 200 MB of memory instead of about 10 MB. Applies after a restart.",
-                    switch("hw", s.hardware_acceleration),
-                )],
-            ),
-            group(
-                "Updates",
-                vec![line(
-                    "Check for updates automatically",
-                    if cfg!(windows) { "Once a day; installing still waits for you" } else { "Once a day" },
-                    switch("updates", s.check_updates),
-                )],
-            ),
-        ]
-        .spacing(18)
-        .width(640)
-        .padding(Padding { top: 0.0, right: 16.0, bottom: 0.0, left: 0.0 });
+            SettingsTab::General => column![
+                group(
+                    "Appearance",
+                    vec![line(
+                        "Use hardware acceleration",
+                        "Draws with the GPU: about 200 MB of memory instead of about 10 MB, and the window is \
+                         solid instead of see-through. Applies after a restart.",
+                        switch("hw", s.hardware_acceleration),
+                    )],
+                ),
+                group(
+                    "Updates",
+                    vec![line(
+                        "Check for updates automatically",
+                        if cfg!(windows) { "Once a day; installing still waits for you" } else { "Once a day" },
+                        switch("updates", s.check_updates),
+                    )],
+                ),
+            ]
+            .spacing(18)
+            .into(),
+        };
+        // Tinggi halaman sama untuk semua tab (setinggi tab terpanjang), agar dialog tidak melompat saat berganti tab.
+        let content =
+            column![container(tabs).center_x(Length::Fill), container(page).height(232)].spacing(18).width(640);
         let mut buttons: Vec<Element<'_, Msg>> = vec![secondary("Cancel", Msg::CloseModal).into()];
         if hw_changed {
             buttons.push(secondary("Save and restart", Msg::Restart).into());
@@ -1423,7 +1577,7 @@ impl Gui {
         for b in buttons {
             actions = actions.push(b);
         }
-        column![scrollable(content).height(Length::Fill), actions].spacing(16).width(656).height(560).into()
+        column![content, actions].spacing(20).width(640).into()
     }
 
     // ---------- view: jendela progres ----------
@@ -1549,8 +1703,54 @@ impl Gui {
             content = content.push(text(it.error.as_str()).size(13).color(DANGER));
         }
         content = content.push(space().height(Length::Fill)).push(buttons);
-        container(content).padding(20).width(Length::Fill).height(Length::Fill).into()
+        let title_bar = self.drag_area(
+            win,
+            stack![
+                container(sub("Download")).center_x(Length::Fill).center_y(28),
+                container(self.traffic_lights(win, Msg::ProgressHide(win), false)).center_y(28).padding([0, 12]),
+            ],
+            false,
+        );
+        column![
+            title_bar,
+            container(content)
+                .padding(Padding { top: 6.0, right: 20.0, bottom: 20.0, left: 20.0 })
+                .height(Length::Fill)
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
     }
+}
+
+/// Tepi jendela yang bisa diseret untuk mengubah ukuran (jendela tanpa bingkai OS tidak punya tepi sendiri).
+fn resize_edges<'a>(win: window::Id) -> Element<'a, Msg> {
+    use iced::mouse::Interaction;
+    use window::Direction as D;
+    const EDGE: f32 = 5.0;
+    let grip = |w: Length, h: Length, d: D, cursor: Interaction| -> Element<'a, Msg> {
+        mouse_area(container(space()).width(w).height(h)).on_press(Msg::DragResize(win, d)).interaction(cursor).into()
+    };
+    let (fill, edge) = (Length::Fill, Length::Fixed(EDGE));
+    column![
+        row![
+            grip(edge, edge, D::NorthWest, Interaction::ResizingDiagonallyDown),
+            grip(fill, edge, D::North, Interaction::ResizingVertically),
+            grip(edge, edge, D::NorthEast, Interaction::ResizingDiagonallyUp),
+        ],
+        row![
+            grip(edge, fill, D::West, Interaction::ResizingHorizontally),
+            space().width(fill).height(fill),
+            grip(edge, fill, D::East, Interaction::ResizingHorizontally),
+        ]
+        .height(fill),
+        row![
+            grip(edge, edge, D::SouthWest, Interaction::ResizingDiagonallyUp),
+            grip(fill, edge, D::South, Interaction::ResizingVertically),
+            grip(edge, edge, D::SouthEast, Interaction::ResizingDiagonallyDown),
+        ],
+    ]
+    .into()
 }
 
 /// Bar segmen ala NDM: 120 kotak; kotak menyala bila ada potongan (piece) aria2 yang sudah terunduh di sana.
@@ -1572,20 +1772,27 @@ fn segments(it: &Item, frac: f32) -> Vec<bool> {
         .collect()
 }
 
-/// Blur dari OS di belakang jendela transparan: Mica di Windows 11 (Acrylic di Windows 10), vibrancy di macOS.
-/// Di Linux blur diurus compositor (Hyprland/KDE) lewat `window::Settings::blur`.
-fn apply_vibrancy(w: &dyn window::Window) {
+/// Ikon dan sudut bulat (Windows), lalu, bila `glass`, blur dari OS di belakang jendela transparan: Mica di
+/// Windows 11 (Acrylic di Windows 10), vibrancy di macOS. Di Linux blur diurus compositor (Hyprland/KDE) lewat
+/// `window::Settings::blur`.
+fn style_window(w: &dyn window::Window, glass: bool) {
     #[cfg(windows)]
     {
-        if window_vibrancy::apply_mica(w, Some(true)).is_err() {
+        use raw_window_handle::RawWindowHandle;
+        if let Ok(h) = w.window_handle()
+            && let RawWindowHandle::Win32(h) = h.as_raw()
+        {
+            platform::style_window(h.hwnd.get());
+        }
+        if glass && window_vibrancy::apply_mica(w, Some(true)).is_err() {
             let _ = window_vibrancy::apply_acrylic(w, Some((18, 20, 26, 140)));
         }
     }
     #[cfg(target_os = "macos")]
-    {
+    if glass {
         let _ = window_vibrancy::apply_vibrancy(w, window_vibrancy::NSVisualEffectMaterial::HudWindow, None, None);
     }
-    let _ = w;
+    let _ = (w, glass);
 }
 
 #[cfg(test)]
@@ -1624,7 +1831,7 @@ mod tests {
             default_font: UI,
             ..Default::default()
         };
-        Simulator::with_size(settings, (1040.0, 600.0), g.main_view())
+        Simulator::with_size(settings, (1040.0, 600.0), g.main_view(window::Id::unique()))
     }
 
     /// Simpan potret bila KARA_UI_SHOTS menunjuk ke sebuah folder (untuk memeriksa tampilan dengan mata).
@@ -1682,7 +1889,8 @@ mod tests {
         let mut g = gui();
         for (msgs, name, expect) in [
             (vec![Msg::ShowMore], "more-menu", "Quit (stop catching downloads)"),
-            (vec![Msg::ShowSettings], "settings", "Use hardware acceleration"),
+            (vec![Msg::ShowSettings], "settings", "Connections per file"),
+            (vec![Msg::SettingsTab(SettingsTab::General)], "settings-general", "Use hardware acceleration"),
             (vec![Msg::CloseModal, Msg::ShowAdd], "add", "Paste a link to a file, a video page or an .m3u8 stream."),
         ] {
             apply(&mut g, msgs);

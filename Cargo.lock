@@ -2171,6 +2171,7 @@ dependencies = [
  "iced_test",
  "notify-rust",
  "opener",
+ "raw-window-handle",
  "rfd",
  "serde",
  "serde_json",

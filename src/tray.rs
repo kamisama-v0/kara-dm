@@ -19,6 +19,7 @@ pub struct Tray {
 impl Tray {
     pub fn new() -> Option<Tray> {
         use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem};
+        follow_system_menu_theme();
         let open = MenuItem::new("Open Kara DM", true, None);
         let settings = MenuItem::new("Settings", true, None);
         let quit = MenuItem::new("Quit (stop catching downloads)", true, None);
@@ -57,6 +58,37 @@ impl Tray {
             }
         }
         out
+    }
+}
+
+/// Menu pop-up Win32 (menu tray) selalu terang kecuali aplikasi memintanya ikut tema: `SetPreferredAppMode(AllowDark)`
+/// membuatnya gelap saat Windows memakai mode gelap dan terang saat mode terang, termasuk bila tema diganti saat
+/// aplikasi berjalan. Fungsi uxtheme ini tidak punya nama ekspor, hanya nomor urut (135, 136; Windows 10 1903+);
+/// bila tidak ada, menu tetap terang.
+#[cfg(windows)]
+fn follow_system_menu_theme() {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn LoadLibraryW(name: *const u16) -> isize;
+        fn GetProcAddress(module: isize, name: *const u8) -> Option<unsafe extern "system" fn()>;
+    }
+    const ALLOW_DARK: i32 = 1;
+    let name: Vec<u16> = "uxtheme.dll\0".encode_utf16().collect();
+    // SAFETY: nama berakhiran NUL; nomor urut dikirim sebagai pointer (MAKEINTRESOURCE) seperti yang diminta
+    // GetProcAddress, dan tanda tangan fungsi sesuai yang dipakai Windows sejak 1903.
+    unsafe {
+        let module = LoadLibraryW(name.as_ptr());
+        if module == 0 {
+            return;
+        }
+        if let Some(f) = GetProcAddress(module, 135 as *const u8) {
+            let set_preferred_app_mode: unsafe extern "system" fn(i32) -> i32 = std::mem::transmute(f);
+            set_preferred_app_mode(ALLOW_DARK);
+        }
+        if let Some(f) = GetProcAddress(module, 136 as *const u8) {
+            let flush_menu_themes = f;
+            flush_menu_themes();
+        }
     }
 }
 
