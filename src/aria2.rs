@@ -47,10 +47,15 @@ impl Aria2 {
             fs::write(&o.session, "").map_err(|e| e.to_string())?;
         }
         let n = o.connections.clamp(1, 16);
+        // Windows: dengan "none", tulisan segmen yang jauh di dalam berkas membuat NTFS mengisi nol semua byte di
+        // depannya dulu (berkas 67 GB di HDD: ±15 menit aria2 diam). "trunc" di aria2 versi Windows menandai berkas
+        // sparse lalu menetapkan ukurannya, sehingga hanya bagian yang sudah terunduh yang memakan disk.
+        // Di Linux berkas tanpa alokasi sudah "berlubang" (sparse), jadi "none" tetap paling ringan.
+        let alloc = if cfg!(windows) { "trunc" } else { "none" };
         let conf_text = format!(
             "enable-rpc=true\nrpc-listen-all=false\nrpc-listen-port={port}\nrpc-secret={token}\n\
              dir={dir}\ncontinue=true\nsplit={n}\nmax-connection-per-server={n}\nmin-split-size=1M\n\
-             max-concurrent-downloads={mc}\nmax-overall-download-limit={lim}K\nfile-allocation=none\n\
+             max-concurrent-downloads={mc}\nmax-overall-download-limit={lim}K\nfile-allocation={alloc}\n\
              auto-file-renaming=true\ncontent-disposition-default-utf8=true\ninput-file={sess}\n\
              save-session={sess}\nsave-session-interval=10\nmax-tries=5\nretry-wait=3\n\
              user-agent={ua}\nlog={log}\nlog-level=warn\nconsole-log-level=error\nsummary-interval=0\n\
@@ -67,7 +72,7 @@ impl Aria2 {
         let _ = fs::remove_file(&conf);
         platform::create_private_file(&conf)
             .and_then(|mut f| f.write_all(conf_text.as_bytes()))
-            .map_err(|e| format!("tulis {}: {e}", conf.display()))?;
+            .map_err(|e| format!("write {}: {e}", conf.display()))?;
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .timeout_global(Some(Duration::from_secs(5)))
@@ -98,7 +103,7 @@ impl Aria2 {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .spawn()
-            .map_err(|e| format!("aria2c tidak bisa dijalankan: {e}"))?;
+            .map_err(|e| format!("aria2c could not be started: {e}"))?;
         *self.child.lock().unwrap() = Some(child);
         Ok(())
     }
@@ -108,7 +113,7 @@ impl Aria2 {
         loop {
             match self.call("aria2.getVersion", vec![]) {
                 Ok(_) => return Ok(()),
-                Err(e) if t0.elapsed() > Duration::from_secs(8) => return Err(format!("aria2 tidak merespons: {e}")),
+                Err(e) if t0.elapsed() > Duration::from_secs(8) => return Err(format!("aria2 is not responding: {e}")),
                 Err(_) => std::thread::sleep(Duration::from_millis(100)),
             }
         }
@@ -123,7 +128,7 @@ impl Aria2 {
                 None => false,
             };
             if exited && !self.stopping.load(Ordering::SeqCst) {
-                eprintln!("kara-dm: aria2c berhenti, dijalankan ulang");
+                eprintln!("kara-dm: aria2c stopped, restarting it");
                 std::thread::sleep(Duration::from_secs(2));
                 if self.spawn().is_ok() {
                     let _ = self.wait_ready();
@@ -156,7 +161,7 @@ impl Aria2 {
             .into_iter()
             .map(|r| match r {
                 Value::Array(mut a) if !a.is_empty() => Ok(a.remove(0)),
-                other => Err(other.get("message").and_then(Value::as_str).unwrap_or("galat aria2").to_string()),
+                other => Err(other.get("message").and_then(Value::as_str).unwrap_or("aria2 error").to_string()),
             })
             .collect())
     }
@@ -165,7 +170,7 @@ impl Aria2 {
         let mut resp = self.agent.post(&self.url).send_json(&body).map_err(|e| e.to_string())?;
         let v: Value = resp.body_mut().read_json().map_err(|e| e.to_string())?;
         if let Some(err) = v.get("error") {
-            return Err(err.get("message").and_then(Value::as_str).unwrap_or("galat aria2").to_string());
+            return Err(err.get("message").and_then(Value::as_str).unwrap_or("aria2 error").to_string());
         }
         Ok(v.get("result").cloned().unwrap_or(Value::Null))
     }

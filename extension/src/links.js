@@ -34,9 +34,9 @@ function matches(l) {
 function renderChips() {
   const count = (pred) => links.filter(pred).length;
   const chips = [
-    ["files", "Berkas", count((l) => l.cat !== "other")],
+    ["files", "Files", count((l) => l.cat !== "other")],
     ...K.CATEGORIES.map((c) => [c.id, c.label, count((l) => l.cat === c.id)]).filter(([, , n]) => n),
-    ["all", "Semua tautan", links.length],
+    ["all", "All links", links.length],
   ];
   $("chips").replaceChildren(
     ...chips.map(([id, label, n]) => {
@@ -56,7 +56,7 @@ function renderChips() {
 function renderList() {
   const shown = links.filter(matches);
   if (!shown.length) {
-    $("list").replaceChildren(el("div", "empty", links.length ? "Tidak ada tautan yang cocok. Coba jenis lain atau \"Semua tautan\"." : "Tidak ada tautan di halaman ini."));
+    $("list").replaceChildren(el("div", "empty", links.length ? "No matching links. Try another type or \"All links\"." : "No links on this page."));
   } else {
     $("list").replaceChildren(
       ...shown.map((l) => {
@@ -74,7 +74,7 @@ function renderList() {
         const state = el("span", "sub");
         if (sent.has(l.url)) {
           state.className = "sub done";
-          state.textContent = "Dikirim";
+          state.textContent = "Sent";
         }
         row.append(box, el("span", "ext", l.ext || "—"), grow, state);
         return row;
@@ -86,10 +86,10 @@ function renderList() {
 
 function updateBar() {
   const n = chosen.size;
-  $("count").textContent = n ? n + " dipilih" : "Centang berkas yang mau diunduh";
+  $("count").textContent = n ? n + " selected" : "Tick the files to download";
   $("count").className = "grow sub";
   $("go").disabled = !n;
-  $("go").textContent = n ? "Unduh " + n + " berkas" : "Unduh";
+  $("go").textContent = n ? "Download " + n + (n === 1 ? " file" : " files") : "Download";
 }
 
 function setVisible(on) {
@@ -100,26 +100,26 @@ function setVisible(on) {
 async function download() {
   const urls = [...chosen];
   $("go").disabled = true;
-  $("go").textContent = "Mengirim…";
+  $("go").textContent = "Sending…";
   try {
     const { sent: n, failed } = await ask({ type: "batch", tabId, urls });
     for (const u of urls) sent.add(u);
     chosen.clear();
     renderList();
-    $("count").textContent = n + " berkas dikirim ke Kara DM" + (failed ? ", " + failed + " gagal" : "");
+    $("count").textContent = n + (n === 1 ? " file" : " files") + " sent to Kara DM" + (failed ? ", " + failed + " failed" : "");
     $("count").className = "grow sub " + (failed ? "fail" : "done");
   } catch (e) {
     updateBar();
-    $("count").textContent = /tidak (berjalan|menjawab)/.test(e.message) ? "Kara Download Manager tidak berjalan. Buka aplikasinya lalu coba lagi." : e.message;
+    $("count").textContent = /not (running|responding)/.test(e.message) ? "Kara Download Manager is not running. Open it and try again." : e.message;
     $("count").className = "grow sub fail";
   }
 }
 
 async function main() {
-  if (!Number.isInteger(tabId)) throw new Error("Buka halaman ini dari popup Kara DM atau menu klik kanan.");
+  if (!Number.isInteger(tabId)) throw new Error("Open this page from the Kara DM popup or the right-click menu.");
   const r = await ask({ type: "links", tabId });
   links = r.links;
-  document.title = "Unduh tautan — " + (r.title || K.hostOf(r.url));
+  document.title = "Download links — " + (r.title || K.hostOf(r.url));
   $("page").textContent = (r.title ? r.title + " · " : "") + K.hostOf(r.url);
   if (!links.some((l) => l.cat !== "other")) filter = "all";
   $("search").oninput = renderList;

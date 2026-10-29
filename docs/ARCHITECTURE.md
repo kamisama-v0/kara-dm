@@ -4,8 +4,8 @@
 ┌──────────── browser ────────────┐            ┌──────────────── kara-dm (one process) ────────────────┐
 │ Kara DM extension (or NDM's)    │  ws://     │ ws.rs        WebSocket server, origin check            │
 │  background: downloads.onCreated├──127.0.0.1─► protocol.rs  parse message → Request                   │
-│  content: "Download video" pill │   :10007   │ main.rs      App: choose engine, items, history, events│
-│  popup / options                │            │ ui.rs        GTK 4 / libadwaita windows                │
+│  content: "Download video" pill │   :10007   │ engine.rs    choose engine, items, history, events     │
+│  popup / options                │            │ gui.rs       iced windows (daemon; tray on Windows)    │
 └─────────────────────────────────┘            │ aria2.rs ──► aria2c (child, JSON-RPC 127.0.0.1:random) │
                                                │ jobs.rs  ──► yt-dlp · curl · ffmpeg (child processes)  │
                                                │ platform.rs  folders, private files, tools, notify     │
@@ -14,11 +14,14 @@
 
 ## Process model
 
-- kara-dm is a single GTK application (`io.github.kamisama_v0.KaraDM`). On Linux GApplication makes it single
-  instance over D-Bus; on Windows `instance.rs` forwards arguments over `127.0.0.1:10008`. Closing the window
-  hides it — the process keeps running so the browser can hand over downloads. `kara-dm --quit` stops it.
-- Background threads (WebSocket connections, aria2 polling, job output readers) never touch GTK. They send
-  `Event`s through an `async_channel` that the GTK main loop consumes (`App::handle`).
+- kara-dm is a single process. `instance.rs` makes it single instance on every OS: a second launch forwards its
+  arguments over `127.0.0.1:10008` and exits. The interface is an iced daemon: closing the window leaves the
+  process running with no window (about 3 MB) so the browser can hand over downloads; `kara-dm --quit` stops it.
+- `engine.rs` owns all state. Background threads (WebSocket connections, aria2 polling, job output readers) never
+  touch it directly: they send `Event`s through an `async_channel` that `Engine::tick` drains, called by the UI
+  every 125 ms (250 ms with no window). The engine asks the UI for windows and messages through `Effect`s.
+- The renderer is chosen at start: tiny-skia (software, about 10 MB) by default, wgpu with "Use hardware
+  acceleration".
 - aria2 runs as a child process with `--stop-with-process`, a random RPC port and a random token stored in a
   private config file. A watcher restarts it if it dies. Every second the app reads `tellActive`,
   `tellWaiting` and `tellStopped` in one `system.multicall`.
@@ -34,7 +37,7 @@
 | `<cache>/kara-dm/parts/<id>/` | separate video/audio streams before merging |
 | `<runtime>/kara-dm/` | aria2 config with RPC token; temporary cookie/body files for jobs |
 
-`<config>`, `<data>`, `<cache>`, `<runtime>` come from GLib: XDG directories on Linux (sandboxed under
+`<config>`, `<data>`, `<cache>`, `<runtime>` are the XDG directories on Linux (sandboxed under
 `~/.var/app/…` in Flatpak), `%LOCALAPPDATA%` on Windows.
 
 ## Download states

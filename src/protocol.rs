@@ -39,7 +39,7 @@ impl Request {
     pub fn from_url(url: &str) -> Result<Request, String> {
         let url = url.trim();
         if !valid_url(url) {
-            return Err(format!("URL tidak valid: {url}"));
+            return Err(format!("invalid URL: {url}"));
         }
         Ok(Request { method: "GET".into(), url: url.into(), kind: "normal".into(), ..Default::default() })
     }
@@ -83,10 +83,10 @@ pub fn parse(text: &str) -> Result<Request, String> {
         }
     }
     if !valid_url(&r.url) {
-        return Err(format!("URL tidak valid: {:?}", r.url));
+        return Err(format!("invalid URL: {:?}", r.url));
     }
     if r.method != "GET" && r.method != "POST" {
-        return Err(format!("metode tidak didukung: {}", r.method));
+        return Err(format!("unsupported method: {}", r.method));
     }
     if r.url2.as_deref().is_some_and(|u| !valid_url(u)) {
         r.url2 = None;
@@ -102,10 +102,87 @@ pub fn quality(v: &str) -> Option<&'static str> {
 /// Argumen pemilihan format yt-dlp untuk kualitas tersebut.
 pub fn ytdlp_format_args(quality: &str) -> Vec<String> {
     match quality {
-        "audio" => vec!["-f".into(), "bestaudio/best".into()],
+        "audio" => vec!["-f".into(), "bestaudio[ext=m4a]/bestaudio/best".into()],
         h if !h.is_empty() => vec!["-S".into(), format!("res:{h}")],
         _ => vec![],
     }
+}
+
+/// Judul jadi nama berkas ringkas: deretan selain huruf/angka menjadi satu `-`, mis. "niki - Tsunami (live)" ->
+/// "niki-Tsunami-live". Huruf non-Latin tetap dipertahankan.
+pub fn slug(title: &str) -> String {
+    let mut out = String::new();
+    for c in title.chars() {
+        if c.is_alphanumeric() {
+            out.push(c);
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_end_matches('-').chars().take(150).collect()
+}
+
+/// Halaman "Google Drive can't scan this file for viruses" yang dikirim Google alih-alih berkas besar. Token `at`
+/// di URL dari browser hanya berlaku sekali (sudah dipakai Firefox), jadi permintaan aria2 mendapat halaman ini
+/// lagi berisi token baru. Kembalikan URL unduhan dari formulirnya, hanya bila tujuannya tetap Google Drive.
+pub fn drive_confirm_url(html: &str) -> Option<String> {
+    let form_start = html.find("id=\"download-form\"")?;
+    let tag_open = html[..form_start].rfind("<form")?;
+    let form = &html[tag_open..];
+    let form = &form[..form.find("</form>").unwrap_or(form.len())];
+    let action = html_unescape(attr(&form[..form.find('>')?], "action")?);
+    if !action.starts_with("https://drive.usercontent.google.com/") || action.contains(['?', '#']) {
+        return None;
+    }
+    let mut query = vec![];
+    for input in form.split("<input").skip(1) {
+        let tag = &input[..input.find('>').unwrap_or(input.len())];
+        if let (Some(name), Some(value)) = (attr(tag, "name"), attr(tag, "value")) {
+            query.push(format!("{}={}", percent_encode(&html_unescape(name)), percent_encode(&html_unescape(value))));
+        }
+    }
+    (!query.is_empty()).then(|| format!("{action}?{}", query.join("&")))
+}
+
+/// Awal berkas berupa halaman HTML (bukan berkas biner/teks yang memang diminta).
+pub fn is_html(text: &str) -> bool {
+    let head: String = text.trim_start().chars().take(64).collect::<String>().to_ascii_lowercase();
+    head.starts_with("<!doctype html") || head.starts_with("<html")
+}
+
+/// Pesan untuk halaman error Google Drive, dari judulnya (mis. "Quota exceeded").
+pub fn drive_page_error(html: &str) -> String {
+    let title = html
+        .find("<title>")
+        .and_then(|s| html[s + 7..].find("</title>").map(|e| &html[s + 7..s + 7 + e]))
+        .map(|t| html_unescape(t.trim().trim_start_matches("Google Drive - ")))
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| "unknown page".into());
+    let hint = if title.to_ascii_lowercase().contains("quota") {
+        ". The file was downloaded too often; try again later (up to 24 hours) or download a copy of it (Make a copy)"
+    } else {
+        ""
+    };
+    format!("Google Drive refused the download: {title}{hint}")
+}
+
+fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let key = format!(" {name}=\"");
+    let start = tag.find(&key)? + key.len();
+    Some(&tag[start..start + tag[start..].find('"')?])
+}
+
+fn html_unescape(s: &str) -> String {
+    s.replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+}
+
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 pub fn valid_url(u: &str) -> bool {
@@ -166,7 +243,7 @@ pub fn sanitize(name: &str) -> String {
     let s: String = name.chars().map(|c| if c.is_control() || "/\\<>:\"|?*".contains(c) { '_' } else { c }).collect();
     let mut s = s.trim().trim_start_matches('.').trim_end_matches(['.', ' ']).trim().to_string();
     if s.is_empty() {
-        return "unduhan".into();
+        return "download".into();
     }
     let stem = s.split('.').next().unwrap_or("").to_ascii_uppercase();
     let device = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
@@ -264,11 +341,31 @@ mod tests {
         let r = parse("1:GET\r\n2:https://youtu.be/x\r\n6:hls\r\n10:720\r\n11:1\r\n").unwrap();
         assert_eq!((r.quality.as_str(), r.batch), ("720", true));
         assert_eq!(ytdlp_format_args(&r.quality), ["-S", "res:720"]);
-        assert_eq!(ytdlp_format_args("audio"), ["-f", "bestaudio/best"]);
+        assert_eq!(ytdlp_format_args("audio"), ["-f", "bestaudio[ext=m4a]/bestaudio/best"]);
         let r = parse("1:GET\r\n2:https://youtu.be/x\r\n10:--exec rm\r\n").unwrap();
         assert_eq!((r.quality.as_str(), r.batch), ("", false));
         assert!(ytdlp_format_args(&r.quality).is_empty());
         assert!(r.headers.is_empty());
+    }
+
+    #[test]
+    fn drive_virus_warning_page_gives_fresh_url() {
+        let page = r#"<html><body>Google Drive can't scan this file for viruses.<form id="download-form" action="https://drive.usercontent.google.com/download" method="get"><input type="submit" id="uc-download-link" class="goog-inline-block jfk-button jfk-button-action" value="Download anyway"/><input type="hidden" name="id" value="10xD5abc"><input type="hidden" name="export" value="download"><input type="hidden" name="authuser" value="2"><input type="hidden" name="confirm" value="t"><input type="hidden" name="uuid" value="815d2b63-384e"><input type="hidden" name="at" value="AMrW+x/y:179&amp;z"></form></body></html>"#;
+        assert_eq!(
+            drive_confirm_url(page).as_deref(),
+            Some(
+                "https://drive.usercontent.google.com/download?id=10xD5abc&export=download&authuser=2&confirm=t&uuid=815d2b63-384e&at=AMrW%2Bx%2Fy%3A179%26z"
+            )
+        );
+        assert_eq!(drive_confirm_url(&page.replace("drive.usercontent.google.com", "evil.example")), None);
+        assert_eq!(drive_confirm_url("<html>berkas biasa</html>"), None);
+        assert!(is_html(page) && is_html("  <!DOCTYPE html><html>") && !is_html("PK\u{3}\u{4}zip"));
+        let quota = "<!DOCTYPE html><html><head><title>Google Drive - Quota exceeded</title></head><body>Too many users</body></html>";
+        assert!(
+            drive_page_error(quota)
+                .starts_with("Google Drive refused the download: Quota exceeded. The file was downloaded too often")
+        );
+        assert_eq!(drive_confirm_url(quota), None);
     }
 
     #[test]
@@ -283,7 +380,7 @@ mod tests {
     fn names_are_safe() {
         assert_eq!(sanitize("../../etc/passwd"), "_.._etc_passwd");
         assert_eq!(sanitize(".bashrc"), "bashrc");
-        assert_eq!(sanitize("  "), "unduhan");
+        assert_eq!(sanitize("  "), "download");
         assert_eq!(sanitize("a\nb"), "a_b");
         assert_eq!(sanitize("judul: bagian 1? <final>.mp4"), "judul_ bagian 1_ _final_.mp4");
         assert_eq!(sanitize("con.txt"), "_con.txt");

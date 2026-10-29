@@ -29,7 +29,7 @@ function connect(timeoutMs = 1500) {
     }
     const timer = setTimeout(() => {
       ws.close();
-      reject(new Error("Kara DM tidak menjawab"));
+      reject(new Error("Kara DM is not responding"));
     }, timeoutMs);
     ws.onopen = () => {
       clearTimeout(timer);
@@ -38,7 +38,7 @@ function connect(timeoutMs = 1500) {
     };
     ws.onerror = () => {
       clearTimeout(timer);
-      reject(new Error("Kara DM tidak berjalan"));
+      reject(new Error("Kara DM is not running"));
     };
     ws.onclose = () => {
       if (socket === ws) socket = null;
@@ -51,15 +51,14 @@ async function send(req) {
   (await connect()).send(msg);
 }
 
+// Cookie first-party URL itu, seperti yang dikirim browser untuk unduhan biasa. Bukan semua partisi: Firefox juga
+// menyimpan salinan cookie situs ini yang dipartisi di bawah situs lain (embed, login pihak ketiga), dan
+// mencampurnya bisa mengirim sesi yang salah (mis. Google Drive lalu menolak token unduhannya).
 async function cookiesFor(url) {
   try {
-    return K.cookieHeader(await api.cookies.getAll({ url, partitionKey: {} }));
+    return K.cookieHeader(await api.cookies.getAll({ url }));
   } catch {
-    try {
-      return K.cookieHeader(await api.cookies.getAll({ url }));
-    } catch {
-      return "";
-    }
+    return "";
   }
 }
 
@@ -93,15 +92,38 @@ api.webRequest.onBeforeRequest.addListener(
   { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] },
   ["requestBody"],
 );
-api.webRequest.onSendHeaders.addListener(
-  (d) => {
-    if (d.method !== "POST" || !posts.has(d.url)) return;
-    const ct = (d.requestHeaders || []).find((h) => h.name.toLowerCase() === "content-type");
-    if (ct && !posts.get(d.url).contentType) rememberPost(d.url, { contentType: ct.value });
-  },
-  { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] },
-  ["requestHeaders"],
-);
+// Header Cookie yang benar-benar dikirim browser untuk permintaan yang lalu menjadi unduhan: sesi yang persis
+// sama dengan milik browser, termasuk dari iframe. Hanya di memori, dibuang setelah 60 detik.
+const sentCookies = new Map();
+
+function rememberCookie(url, cookie) {
+  const now = Date.now();
+  for (const [k, v] of sentCookies) if (now - v.t > 60000) sentCookies.delete(k);
+  sentCookies.set(url, { cookie, t: now });
+  if (sentCookies.size > 30) sentCookies.delete(sentCookies.keys().next().value);
+}
+
+function onSendHeaders(d) {
+  const header = (name) => (d.requestHeaders || []).find((h) => h.name.toLowerCase() === name);
+  const cookie = header("cookie");
+  if (cookie && cookie.value) rememberCookie(d.url, cookie.value);
+  if (d.method !== "POST" || !posts.has(d.url)) return;
+  const ct = header("content-type");
+  if (ct && !posts.get(d.url).contentType) rememberPost(d.url, { contentType: ct.value });
+}
+
+// Chromium hanya memperlihatkan header Cookie dengan "extraHeaders"; Firefox selalu memperlihatkannya dan
+// menolak opsi itu.
+try {
+  api.webRequest.onSendHeaders.addListener(onSendHeaders, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame", "other"] }, [
+    "requestHeaders",
+    "extraHeaders",
+  ]);
+} catch {
+  api.webRequest.onSendHeaders.addListener(onSendHeaders, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame", "other"] }, [
+    "requestHeaders",
+  ]);
+}
 
 // ---------- tangkap unduhan browser ----------
 
@@ -122,7 +144,7 @@ async function handleDownload(item) {
     await connect();
   } catch {
     // Aplikasi tidak jalan: biarkan browser yang mengunduh (berkas tidak hilang).
-    notify("Kara DM tidak berjalan", "Diunduh oleh browser: " + name);
+    notify("Kara DM is not running", "Downloaded by the browser: " + name);
     return;
   }
   try {
@@ -140,7 +162,7 @@ async function handleDownload(item) {
     url,
     page: item.referrer || "",
     title: tab && item.referrer && tab.url === item.referrer ? tab.title : "",
-    cookies: await cookiesFor(url),
+    cookies: (sentCookies.get(url) || sentCookies.get(item.url))?.cookie ?? (await cookiesFor(url)),
     size: item.totalBytes > 0 ? item.totalBytes : 0,
     mime: item.mime || "",
     body: post?.body,
@@ -149,7 +171,7 @@ async function handleDownload(item) {
   try {
     await send(req);
   } catch (e) {
-    notify("Gagal mengirim ke Kara DM", e.message + ". Diunduh ulang oleh browser.");
+    notify("Could not send to Kara DM", e.message + ". Downloaded again by the browser.");
     if (req.method === "GET") {
       bypass.add(url);
       setTimeout(() => bypass.delete(url), 10000);
@@ -162,15 +184,15 @@ async function handleDownload(item) {
 
 api.runtime.onInstalled.addListener(async () => {
   await api.contextMenus.removeAll();
-  api.contextMenus.create({ id: "kdm-link", title: "Unduh dengan Kara DM", contexts: ["link"] });
-  api.contextMenus.create({ id: "kdm-media", title: "Unduh media ini dengan Kara DM", contexts: ["video", "audio", "image"] });
-  api.contextMenus.create({ id: "kdm-page", title: "Unduh video halaman ini (yt-dlp)", contexts: ["page", "video"] });
-  api.contextMenus.create({ id: "kdm-links", title: "Unduh semua tautan dengan Kara DM…", contexts: ["page"] });
+  api.contextMenus.create({ id: "kdm-link", title: "Download with Kara DM", contexts: ["link"] });
+  api.contextMenus.create({ id: "kdm-media", title: "Download this media with Kara DM", contexts: ["video", "audio", "image"] });
+  api.contextMenus.create({ id: "kdm-page", title: "Download this page's video (yt-dlp)", contexts: ["page", "video"] });
+  api.contextMenus.create({ id: "kdm-links", title: "Download all links with Kara DM…", contexts: ["page"] });
 });
 
 api.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "kdm-links") return void openLinksPage(tab.id);
-  sendFromMenu(info, tab).catch((e) => notify("Gagal mengirim ke Kara DM", e.message));
+  sendFromMenu(info, tab).catch((e) => notify("Could not send to Kara DM", e.message));
 });
 
 function openLinksPage(tabId) {
@@ -281,7 +303,7 @@ async function handleMessage(msg, sender) {
       try {
         raw = await api.tabs.sendMessage(tab.id, { type: "kara-links" }, { frameId: 0 });
       } catch {
-        throw new Error("Halaman ini belum bisa dibaca. Muat ulang halamannya lalu coba lagi.");
+        throw new Error("Can't read this page yet. Reload it and try again.");
       }
       return { title: tab.title, url: tab.url, links: K.prepareLinks(raw, tab.url) };
     }
@@ -298,6 +320,6 @@ async function handleMessage(msg, sender) {
       return { sent, failed: urls.length - sent };
     }
     default:
-      throw new Error("pesan tidak dikenal: " + msg.type);
+      throw new Error("unknown message: " + msg.type);
   }
 }

@@ -20,14 +20,14 @@
 
   // Kualitas video untuk yt-dlp (halaman video, HLS, DASH): tinggi maksimum atau audio saja.
   const QUALITIES = [
-    ["best", "Terbaik"],
+    ["best", "Best"],
     ["2160", "4K (2160p)"],
     ["1440", "1440p"],
     ["1080", "1080p"],
     ["720", "720p"],
     ["480", "480p"],
     ["360", "360p"],
-    ["audio", "Audio saja"],
+    ["audio", "Audio only"],
   ];
 
   function qualityLabel(q) {
@@ -36,12 +36,12 @@
 
   // Kategori tautan untuk unduh massal, menurut ekstensi berkas di URL.
   const CATEGORIES = [
-    ["video", "Video", "mp4 mkv webm mov avi m4v flv wmv 3gp mpg mpeg"],
+    ["video", "Videos", "mp4 mkv webm mov avi m4v flv wmv 3gp mpg mpeg"],
     ["audio", "Audio", "mp3 m4a flac wav ogg opus aac wma"],
-    ["image", "Gambar", "jpg jpeg png gif webp avif bmp tif tiff heic svg"],
-    ["document", "Dokumen", "pdf doc docx xls xlsx ppt pptx odt ods odp txt csv rtf epub"],
-    ["archive", "Arsip", "zip rar 7z tar gz tgz bz2 xz zst iso dmg img"],
-    ["program", "Program", "exe msi apk deb rpm appimage flatpak pkg jar"],
+    ["image", "Images", "jpg jpeg png gif webp avif bmp tif tiff heic svg"],
+    ["document", "Documents", "pdf doc docx xls xlsx ppt pptx odt ods odp txt csv rtf epub"],
+    ["archive", "Archives", "zip rar 7z tar gz tgz bz2 xz zst iso dmg img"],
+    ["program", "Programs", "exe msi apk deb rpm appimage flatpak pkg jar"],
   ].map(([id, label, exts]) => ({ id, label, exts: new Set(exts.split(" ")) }));
 
   function linkCategory(url) {
@@ -122,14 +122,14 @@
   function captureDecision(item, settings) {
     const s = { ...DEFAULTS, ...settings };
     const url = item.finalUrl || item.url;
-    if (!s.capture) return "tangkapan dimatikan";
-    if (item.incognito) return "jendela privat";
-    if (!isCapturableUrl(url)) return "bukan http/https/ftp";
-    if (siteMatches(hostOf(url), s.excludedSites) || siteMatches(hostOf(item.referrer), s.excludedSites)) return "situs dikecualikan";
+    if (!s.capture) return "capture is off";
+    if (item.incognito) return "private window";
+    if (!isCapturableUrl(url)) return "not http/https/ftp";
+    if (siteMatches(hostOf(url), s.excludedSites) || siteMatches(hostOf(item.referrer), s.excludedSites)) return "excluded site";
     const name = (item.filename || "").split(/[\\/]/).pop();
     const ext = (name.includes(".") ? name.split(".").pop() : extOf(url)).toLowerCase();
-    if (ext && s.ignoredExtensions.map((e) => String(e).trim().replace(/^\./, "").toLowerCase()).includes(ext)) return "jenis berkas diabaikan";
-    if (s.minSizeMB > 0 && item.totalBytes > 0 && item.totalBytes < s.minSizeMB * 1048576) return "di bawah ukuran minimum";
+    if (ext && s.ignoredExtensions.map((e) => String(e).trim().replace(/^\./, "").toLowerCase()).includes(ext)) return "ignored file type";
+    if (s.minSizeMB > 0 && item.totalBytes > 0 && item.totalBytes < s.minSizeMB * 1048576) return "below the minimum size";
     return null;
   }
 
@@ -145,8 +145,8 @@
     const ct = header(details.responseHeaders, "content-type").split(";")[0].trim().toLowerCase();
     const ext = extOf(url);
     const host = hostOf(url);
-    if (/mpegurl/.test(ct) || ext === "m3u8") return { kind: "hls", label: "Stream HLS", ext: "m3u8", url, size: 0 };
-    if (ct === "application/dash+xml" || ext === "mpd") return { kind: "hls", label: "Stream DASH", ext: "mpd", url, size: 0 };
+    if (/mpegurl/.test(ct) || ext === "m3u8") return { kind: "hls", label: "HLS stream", ext: "m3u8", url, size: 0 };
+    if (ct === "application/dash+xml" || ext === "mpd") return { kind: "hls", label: "DASH stream", ext: "mpd", url, size: 0 };
     const media = /^(video|audio)\//.test(ct) || ["mp4", "webm", "mkv", "mov", "m4a", "mp3", "ogg", "opus", "flac"].includes(ext);
     if (!media) return null;
     // Potongan stream (segmen HLS/DASH, range YouTube) bukan berkas utuh.
@@ -156,13 +156,27 @@
     const total = range ? parseInt(range.split("/")[1], 10) : parseInt(header(details.responseHeaders, "content-length"), 10);
     const size = Number.isFinite(total) ? total : 0;
     if (size > 0 && size < 512 * 1024) return null;
+    // Audio tanpa ukuran hampir selalu efek suara situs (klik, notifikasi, "success.mp3"); musik/podcast utuh
+    // menyebut ukurannya.
+    const audio = ct.startsWith("audio/") || ["mp3", "m4a", "ogg", "opus", "flac", "wav"].includes(ext);
+    if (audio && !size) return null;
     const kindExt = ext || (ct.split("/")[1] || "").replace(/^x-/, "") || "mp4";
-    return { kind: "media", label: kindExt.toUpperCase() + (ct.startsWith("audio/") ? " audio" : " video"), ext: kindExt, url, size };
+    return { kind: "media", label: audio ? "Audio" : "Video", ext: kindExt, url, size };
   }
 
   function pageEntry(pageUrl, title) {
     if (!/^https?:\/\//i.test(pageUrl || "")) return null;
-    return { kind: "hls", page: true, label: "Video halaman ini (yt-dlp)", ext: "", url: pageUrl, size: 0, title };
+    return { kind: "hls", page: true, label: "This page's video (yt-dlp)", ext: "", url: pageUrl, size: 0, title };
+  }
+
+  // Judul yang ditampilkan untuk video halaman: judul tab tanpa nama situs ("niki - Tsunami - YouTube" ->
+  // "niki - Tsunami"), atau label umum bila tab tak berjudul.
+  function pageTitle(entry) {
+    const t = String(entry.title || "")
+      .replace(/^\(\d+\)\s*/, "")
+      .replace(/\s+[-|–]\s+(YouTube|Vimeo|X|Twitter|Instagram|Facebook|TikTok|Twitch|Dailymotion|Reddit|bilibili)$/i, "")
+      .trim();
+    return t || entry.label;
   }
 
   function isVideoSite(pageUrl) {
@@ -204,7 +218,7 @@
       if (req.contentType) msg += "Content-Type: " + clean(req.contentType) + "\r\n";
       msg += req.body != null ? POST_MARK + req.body : "Content-Length: 0\r\n";
     }
-    if (msg.length > MAX_MESSAGE) throw new Error("pesan terlalu besar (" + msg.length + " byte)");
+    if (msg.length > MAX_MESSAGE) throw new Error("message too large (" + msg.length + " byte)");
     return msg;
   }
 
@@ -266,6 +280,7 @@
     captureDecision,
     classifyMedia,
     pageEntry,
+    pageTitle,
     isVideoSite,
     buildMessage,
     cookieHeader,

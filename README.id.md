@@ -18,7 +18,7 @@
 
 Kara Download Manager (kara-dm) memecah tiap berkas menjadi hingga 16 koneksi paralel, melanjutkan unduhan
 setelah koneksi putus atau komputer restart, dan mengambil alih unduhan dari browser lewat ekstensi **Kara DM**
-(Firefox, Chrome, Chromium). Dibuat dengan Rust, GTK 4, dan libadwaita; mesin unduhnya
+(Firefox, Chrome, Chromium). Dibuat dengan Rust dan iced (±10 MB memori); mesin unduhnya
 [aria2](https://aria2.github.io/). Kompatibel juga dengan ekstensi browser
 [Neat Download Manager](https://www.neatdownloadmanager.com/).
 
@@ -38,9 +38,9 @@ setelah koneksi putus atau komputer restart, dan mengambil alih unduhan dari bro
 
 **Windows 10/11 (beta)** — dari [rilis terbaru](https://github.com/kamisama-v0/kara-dm/releases/latest):
 `…-windows-x64-setup.exe` (tanpa hak admin, ada opsi jalan saat login) atau `…-windows-x64-portable.zip`.
-SmartScreen bisa memperingatkan karena biner belum ditandatangani: **More info → Run anyway**. Untuk
-menggabungkan video + audio terpisah pasang ffmpeg (`winget install Gyan.FFmpeg`). Jangan jalankan bersamaan
-dengan Neat Download Manager (sama-sama memakai port 10007).
+SmartScreen bisa memperingatkan karena biner belum ditandatangani: **More info → Run anyway**. aria2, yt-dlp
+dan ffmpeg sudah dibundel. Neat Download Manager memakai port yang sama (10007); kalau masih jalan, Kara DM
+mengambil alih portnya begitu Neat ditutup.
 
 **Linux (Flatpak)** — unduh `kara-dm-linux-x86_64.flatpak`, lalu:
 
@@ -49,7 +49,7 @@ flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/fl
 flatpak install --user kara-dm-linux-x86_64.flatpak
 ```
 
-**Linux dari sumber** (GTK ≥ 4.16, libadwaita ≥ 1.6, mis. Arch/Fedora 41+): `./install.sh`.
+**Linux dari sumber** (cukup Rust dan aria2, tanpa GTK): `./install.sh`.
 
 ## Ekstensi browser
 

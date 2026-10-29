@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build dan pasang kara-dm dari sumber untuk user ini (Linux): binary ~/.local/bin/kara-dm, ikon, launcher,
 # service systemd user (jalan saat login, menangkap unduhan dari browser).
-# Butuh: Rust (cargo), GTK 4.16+, libadwaita 1.6+, aria2. Opsional: yt-dlp (HLS), ffmpeg (DASH/MKV), curl (POST).
+# Butuh: Rust (cargo), aria2. Opsional: yt-dlp (HLS), ffmpeg (DASH/MKV), curl (POST).
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 id=io.github.kamisama_v0.KaraDM

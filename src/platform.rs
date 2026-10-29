@@ -1,37 +1,45 @@
-//! Perbedaan antar-OS dikumpulkan di sini: folder aplikasi, berkas privat, alat bantu eksternal, notifikasi.
-//! Folder diambil dari GLib (XDG di Linux/Flatpak, %LOCALAPPDATA% di Windows).
+//! Perbedaan antar-OS dikumpulkan di sini: folder aplikasi, berkas privat, alat bantu eksternal, notifikasi,
+//! membuka berkas/folder. Folder mengikuti aturan GLib versi sebelumnya (variabel XDG_* bila diset, selain itu
+//! XDG di Linux dan %LOCALAPPDATA% di Windows), jadi pengaturan dan riwayat lama tetap terbaca.
 
-use gtk::prelude::*;
-use gtk::{gio, glib};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn home() -> PathBuf {
-    glib::home_dir()
+    dirs::home_dir().unwrap_or_default()
 }
 
 /// Folder Downloads milik sistem (mengikuti nama lokal, mis. ~/Unduhan), jatuh ke ~/Downloads.
 pub fn downloads_dir() -> PathBuf {
-    glib::user_special_dir(glib::UserDirectory::Downloads).unwrap_or_else(|| home().join("Downloads"))
+    dirs::download_dir().unwrap_or_else(|| home().join("Downloads"))
+}
+
+fn xdg(var: &str, fallback: Option<PathBuf>) -> PathBuf {
+    std::env::var_os(var).filter(|v| !v.is_empty()).map(PathBuf::from).or(fallback).unwrap_or_else(home)
 }
 
 pub fn config_dir() -> PathBuf {
-    glib::user_config_dir().join("kara-dm")
+    xdg("XDG_CONFIG_HOME", if cfg!(windows) { dirs::data_local_dir() } else { dirs::config_dir() }).join("kara-dm")
 }
 
 pub fn data_dir() -> PathBuf {
-    glib::user_data_dir().join("kara-dm")
+    xdg("XDG_DATA_HOME", dirs::data_local_dir()).join("kara-dm")
 }
 
 pub fn cache_dir() -> PathBuf {
-    glib::user_cache_dir().join("kara-dm")
+    xdg("XDG_CACHE_HOME", dirs::cache_dir()).join("kara-dm")
 }
 
 /// Tempat berkas sesaat (conf aria2 berisi token, cookie untuk yt-dlp). Linux: $XDG_RUNTIME_DIR (tmpfs, 0700).
 pub fn runtime_dir() -> PathBuf {
-    glib::user_runtime_dir().join("kara-dm")
+    std::env::var_os("XDG_RUNTIME_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(dirs::runtime_dir)
+        .map(|d| d.join("kara-dm"))
+        .unwrap_or_else(cache_dir)
 }
 
 pub fn in_flatpak() -> bool {
@@ -39,33 +47,32 @@ pub fn in_flatpak() -> bool {
 }
 
 /// Di Flatpak, minta izin jalan di latar + autostart saat login lewat portal Background (pengguna yang memutuskan
-/// di dialog sistem). Di luar Flatpak autostart diatur installer (systemd user / Startup Windows).
+/// di dialog sistem). Di luar Flatpak autostart diatur installer (systemd user / Startup Windows). Lewat `gdbus`
+/// dari runtime GNOME, tanpa menunggu jawabannya.
 pub fn request_flatpak_autostart() {
     if !in_flatpak() {
         return;
     }
-    let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else { return };
-    let opts = glib::VariantDict::new(None);
-    opts.insert_value("reason", &"Menangkap unduhan dari browser sejak login".to_variant());
-    opts.insert_value("autostart", &true.to_variant());
-    opts.insert_value("commandline", &vec!["kara-dm".to_string(), "--service".to_string()].to_variant());
-    let params = glib::Variant::tuple_from_iter(["".to_variant(), opts.end()]);
-    bus.call(
-        Some("org.freedesktop.portal.Desktop"),
-        "/org/freedesktop/portal/desktop",
-        "org.freedesktop.portal.Background",
-        "RequestBackground",
-        Some(&params),
-        None,
-        gio::DBusCallFlags::NONE,
-        -1,
-        gio::Cancellable::NONE,
-        |r| {
-            if let Err(e) = r {
-                eprintln!("kara-dm: portal Background: {e}");
-            }
-        },
-    );
+    let opts = "{'reason': <'Catching browser downloads since sign-in'>, 'autostart': <true>, \
+                'commandline': <['kara-dm', '--service']>}";
+    let spawned = Command::new("gdbus")
+        .args([
+            "call",
+            "--session",
+            "--dest",
+            "org.freedesktop.portal.Desktop",
+            "--object-path",
+            "/org/freedesktop/portal/desktop",
+            "--method",
+            "org.freedesktop.portal.Background.RequestBackground",
+            "",
+            opts,
+        ])
+        .stdout(std::process::Stdio::null())
+        .spawn();
+    if let Err(e) = spawned {
+        eprintln!("kara-dm: portal Background: {e}");
+    }
 }
 
 /// Folder yang hanya bisa dibaca pemiliknya (0700 di Unix; di Windows profil pengguna sudah ber-ACL per user).
@@ -86,15 +93,23 @@ pub fn create_private_file(p: &Path) -> io::Result<fs::File> {
     o.open(p)
 }
 
-/// Perintah untuk alat bantu (aria2c, yt-dlp, ffmpeg, curl). Di Windows dipakai salinan yang dibundel di samping
-/// kara-dm.exe bila ada, dan tidak memunculkan jendela konsol.
+/// Salinan alat bantu yang dibundel di samping kara-dm.exe, atau di subfolder bernama sama (FFmpeg: `ffmpeg\`
+/// berisi ffmpeg.exe, ffprobe.exe dan DLL-nya).
+pub fn bundled_tool(name: &str) -> Option<PathBuf> {
+    let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
+    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let sub = if name == "ffprobe" { "ffmpeg" } else { name };
+    [dir.join(&file), dir.join(sub).join(&file)].into_iter().find(|p| p.is_file())
+}
+
+/// Perintah untuk alat bantu (aria2c, yt-dlp, ffmpeg, curl). Di Windows dipakai salinan yang dibundel bila ada,
+/// dan tidak memunculkan jendela konsol.
 pub fn tool(name: &str) -> Command {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let bundled = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(format!("{name}.exe"))));
-        let mut c = match bundled.filter(|p| p.exists()) {
+        let mut c = match bundled_tool(name) {
             Some(p) => Command::new(p),
             None => Command::new(name),
         };
@@ -105,10 +120,13 @@ pub fn tool(name: &str) -> Command {
     Command::new(name)
 }
 
+fn in_path(file: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|paths| std::env::split_paths(&paths).any(|d| d.join(file).is_file()))
+}
+
 pub fn has_tool(name: &str) -> bool {
     let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
-    let local = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(&file)));
-    local.is_some_and(|p| p.exists()) || glib::find_program_in_path(&file).is_some()
+    bundled_tool(name).is_some() || in_path(&file)
 }
 
 fn firefox_version() -> Option<String> {
@@ -128,6 +146,7 @@ pub fn user_agent() -> String {
     format!("Mozilla/5.0 ({os}; rv:{v}.0) Gecko/20100101 Firefox/{v}.0")
 }
 
+#[cfg(unix)]
 fn spawn_quiet(mut cmd: Command) -> bool {
     match cmd.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn() {
         Ok(mut c) => {
@@ -138,9 +157,9 @@ fn spawn_quiet(mut cmd: Command) -> bool {
     }
 }
 
-/// Notifikasi desktop. Omarchy punya pembantu sendiri (bisa membuka folder saat diklik); selain itu GNotification
-/// (portal di Flatpak, Shell di GNOME/KDE, Windows).
-pub fn notify(app: &gio::Application, title: &str, body: &str, open_dir: Option<&str>) {
+/// Notifikasi desktop. Omarchy punya pembantu sendiri (bisa membuka folder saat diklik); selain itu notifikasi
+/// sistem (D-Bus di Linux, toast di Windows). Dikirim dari thread terpisah agar tidak menahan antarmuka.
+pub fn notify(title: &str, body: &str, open_dir: Option<&str>) {
     #[cfg(unix)]
     if !in_flatpak() && has_tool("omarchy-notification-send") {
         let mut cmd = Command::new("omarchy-notification-send");
@@ -152,10 +171,63 @@ pub fn notify(app: &gio::Application, title: &str, body: &str, open_dir: Option<
             return;
         }
     }
-    let n = gio::Notification::new(title);
-    n.set_body(Some(body));
-    if let Some(d) = open_dir {
-        n.set_default_action_and_target_value("app.open-path", Some(&d.to_variant()));
+    let _ = open_dir;
+    let (title, body) = (title.to_string(), body.to_string());
+    std::thread::spawn(move || {
+        let _ = notify_rust::Notification::new().appname("Kara Download Manager").summary(&title).body(&body).show();
+    });
+}
+
+/// Buka berkas atau alamat dengan program bawaan sistem.
+pub fn open(target: impl AsRef<std::ffi::OsStr>) {
+    if let Err(e) = opener::open(target) {
+        eprintln!("kara-dm: open: {e}");
     }
-    app.send_notification(None, &n);
+}
+
+/// Buka folder berisi berkas itu dengan berkasnya terpilih.
+pub fn reveal(path: &Path) {
+    if opener::reveal(path).is_err() {
+        open(path.parent().unwrap_or(path));
+    }
+}
+
+/// Jendela tanpa bingkai Windows (title bar digambar sendiri): pasang ikon aplikasi dari resource exe (taskbar,
+/// Alt-Tab) dan minta DWM membulatkan sudutnya seperti jendela Windows 11 biasa.
+#[cfg(windows)]
+pub fn style_window(hwnd: isize) {
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn LoadImageW(instance: isize, name: *const u16, kind: u32, cx: i32, cy: i32, flags: u32) -> isize;
+        fn SendMessageW(hwnd: isize, msg: u32, wparam: usize, lparam: isize) -> isize;
+        fn GetSystemMetrics(index: i32) -> i32;
+    }
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetModuleHandleW(name: *const u16) -> isize;
+    }
+    #[link(name = "dwmapi")]
+    unsafe extern "system" {
+        fn DwmSetWindowAttribute(hwnd: isize, attribute: u32, value: *const std::ffi::c_void, size: u32) -> i32;
+    }
+    const IMAGE_ICON: u32 = 1;
+    const LR_SHARED: u32 = 0x8000;
+    const WM_SETICON: u32 = 0x0080;
+    const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
+    const DWMWCP_ROUND: u32 = 2;
+    // SAFETY: hwnd milik jendela yang masih hidup (dipanggil dari window::run); resource ikon 1 disematkan build.rs
+    // dan dimuat bersama (LR_SHARED, tidak perlu dibebaskan); nilai atribut DWM berukuran 4 byte seperti yang diminta.
+    unsafe {
+        let instance = GetModuleHandleW(std::ptr::null());
+        // (ICON_SMALL, SM_CXSMICON), (ICON_BIG, SM_CXICON)
+        for (kind, metric) in [(0usize, 49), (1, 11)] {
+            let size = GetSystemMetrics(metric);
+            let icon = LoadImageW(instance, std::ptr::without_provenance::<u16>(1), IMAGE_ICON, size, size, LR_SHARED);
+            if icon != 0 {
+                SendMessageW(hwnd, WM_SETICON, kind, icon);
+            }
+        }
+        let round = DWMWCP_ROUND;
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, (&raw const round).cast(), 4);
+    }
 }

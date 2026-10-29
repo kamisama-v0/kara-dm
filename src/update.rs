@@ -68,20 +68,20 @@ fn curl(ua: &str) -> std::process::Command {
 }
 
 fn run(mut cmd: std::process::Command) -> Result<Vec<u8>, String> {
-    let out = cmd.output().map_err(|e| format!("curl tidak bisa dijalankan: {e}"))?;
+    let out = cmd.output().map_err(|e| format!("curl could not be started: {e}"))?;
     if out.status.success() {
         Ok(out.stdout)
     } else {
         let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        Err(if err.is_empty() { "GitHub tidak bisa dihubungi".into() } else { err })
+        Err(if err.is_empty() { "could not reach GitHub".into() } else { err })
     }
 }
 
 pub fn fetch_latest(ua: &str) -> Result<Release, String> {
     let mut cmd = curl(ua);
     cmd.args(["--max-time", "20", "-H", "Accept: application/vnd.github+json", API_LATEST]);
-    let v: Value = serde_json::from_slice(&run(cmd)?).map_err(|e| format!("jawaban GitHub tidak terbaca: {e}"))?;
-    parse_release(&v).ok_or_else(|| "rilis terbaru di GitHub tidak dikenali".into())
+    let v: Value = serde_json::from_slice(&run(cmd)?).map_err(|e| format!("unreadable answer from GitHub: {e}"))?;
+    parse_release(&v).ok_or_else(|| "the latest GitHub release was not recognised".into())
 }
 
 /// Unduh installer ke `dir` dan pastikan SHA-256-nya sama dengan yang dicatat GitHub.
@@ -94,7 +94,7 @@ pub fn download(a: &Asset, dir: &Path, ua: &str) -> Result<PathBuf, String> {
     let got = sha256_file(&path).map_err(|e| e.to_string())?;
     if got != a.sha256 {
         let _ = std::fs::remove_file(&path);
-        return Err("checksum installer tidak cocok dengan rilis GitHub; pembaruan dibatalkan".into());
+        return Err("installer checksum does not match the GitHub release; update cancelled".into());
     }
     Ok(path)
 }
@@ -106,7 +106,7 @@ pub fn launch_installer(path: &Path) -> Result<(), String> {
         .args(["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"])
         .spawn()
         .map(|_| ())
-        .map_err(|e| format!("installer tidak bisa dijalankan: {e}"))
+        .map_err(|e| format!("the installer could not be started: {e}"))
 }
 
 fn sha256_file(path: &Path) -> std::io::Result<String> {

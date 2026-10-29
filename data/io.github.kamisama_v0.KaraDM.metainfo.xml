@@ -32,6 +32,13 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.4.0" date="2026-10-29">
+      <description>
+        <p>A new, much lighter interface (iced instead of GTK) with a right-click menu for downloads and tabbed
+        settings. Page videos are named after their title and resolution, Google Drive downloads of large files
+        work again, and the app is in English.</p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-10-20">
       <description>
         <p>Unfinished downloads are kept in a temp subfolder of the download folder and moved in when complete. The

@@ -58,6 +58,9 @@ pub struct Settings {
     pub check_updates: bool,
     /// Versi terakhir yang sudah diberitahukan lewat notifikasi (tidak diulang tiap kali aplikasi mulai).
     pub notified_version: String,
+    /// Gambar jendela dengan GPU (wgpu) alih-alih renderer software (tiny-skia). GPU memungkinkan efek kaca
+    /// yang lebih berat tapi memakan jauh lebih banyak RAM; berlaku setelah aplikasi dibuka ulang.
+    pub hardware_acceleration: bool,
 }
 
 impl Default for Settings {
@@ -73,6 +76,7 @@ impl Default for Settings {
             autostart_asked: false,
             check_updates: true,
             notified_version: String::new(),
+            hardware_acceleration: false,
         }
     }
 }
@@ -125,16 +129,6 @@ pub enum Status {
 }
 
 impl Status {
-    pub fn label(self) -> &'static str {
-        match self {
-            Status::Waiting => "Antre",
-            Status::Active => "Mengunduh",
-            Status::Paused => "Dijeda",
-            Status::Merging => "Menggabung",
-            Status::Complete => "Selesai",
-            Status::Error => "Gagal",
-        }
-    }
     pub fn finished(self) -> bool {
         self == Status::Complete
     }
@@ -226,35 +220,32 @@ impl Item {
     }
 }
 
-pub const CATEGORIES: [(&str, &str, &str); 10] = [
-    ("all", "Semua unduhan", "folder-download-symbolic"),
-    ("unfinished", "Belum selesai", "media-playback-start-symbolic"),
-    ("finished", "Selesai", "object-select-symbolic"),
-    ("Video", "Video", "video-x-generic-symbolic"),
-    ("Musik", "Musik", "audio-x-generic-symbolic"),
-    ("Arsip", "Arsip", "package-x-generic-symbolic"),
-    ("Dokumen", "Dokumen", "x-office-document-symbolic"),
-    ("Program", "Program", "application-x-executable-symbolic"),
-    ("Gambar", "Gambar", "image-x-generic-symbolic"),
-    ("Lainnya", "Lainnya", "text-x-generic-symbolic"),
+/// (kunci, label) untuk sidebar: filter status lalu kategori jenis berkas (kunci = hasil `category()`).
+pub const CATEGORIES: [(&str, &str); 10] = [
+    ("all", "All downloads"),
+    ("unfinished", "Unfinished"),
+    ("finished", "Finished"),
+    ("Video", "Video"),
+    ("Music", "Music"),
+    ("Archives", "Archives"),
+    ("Documents", "Documents"),
+    ("Programs", "Programs"),
+    ("Images", "Images"),
+    ("Other", "Other"),
 ];
 
 pub fn category(name: &str) -> &'static str {
     let ext = crate::protocol::ext_of(name).unwrap_or_default();
     match ext.as_str() {
         "mp4" | "mkv" | "webm" | "avi" | "mov" | "wmv" | "flv" | "m4v" | "ts" | "mpg" | "mpeg" | "3gp" => "Video",
-        "mp3" | "m4a" | "aac" | "flac" | "ogg" | "opus" | "wav" | "wma" | "weba" => "Musik",
-        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "zst" | "tgz" | "iso" | "img" | "dmg" => "Arsip",
+        "mp3" | "m4a" | "aac" | "flac" | "ogg" | "opus" | "wav" | "wma" | "weba" => "Music",
+        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "zst" | "tgz" | "iso" | "img" | "dmg" => "Archives",
         "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" | "txt" | "epub" | "csv"
-        | "md" | "vtt" | "srt" => "Dokumen",
-        "exe" | "msi" | "deb" | "rpm" | "appimage" | "apk" | "pkg" | "sh" | "jar" | "run" => "Program",
-        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "tif" | "tiff" | "heic" | "avif" => "Gambar",
-        _ => "Lainnya",
+        | "md" | "vtt" | "srt" => "Documents",
+        "exe" | "msi" | "deb" | "rpm" | "appimage" | "apk" | "pkg" | "sh" | "jar" | "run" => "Programs",
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "tif" | "tiff" | "heic" | "avif" => "Images",
+        _ => "Other",
     }
-}
-
-pub fn category_icon(cat: &str) -> &'static str {
-    CATEGORIES.iter().find(|c| c.0 == cat).map(|c| c.2).unwrap_or("text-x-generic-symbolic")
 }
 
 pub fn load_history(path: &Path) -> Vec<Item> {
@@ -283,16 +274,15 @@ pub fn fmt_speed(b: u64) -> String {
 pub fn fmt_eta(s: Option<u64>) -> String {
     match s {
         None => String::new(),
-        Some(s) if s >= 3600 => format!("{} jam {} mnt", s / 3600, s % 3600 / 60),
-        Some(s) if s >= 60 => format!("{} mnt {} dtk", s / 60, s % 60),
-        Some(s) => format!("{s} dtk"),
+        Some(s) if s >= 3600 => format!("{} h {} min", s / 3600, s % 3600 / 60),
+        Some(s) if s >= 60 => format!("{} min {} s", s / 60, s % 60),
+        Some(s) => format!("{s} s"),
     }
 }
 
 pub fn fmt_date(t: u64) -> String {
-    // Tanggal lokal lewat GLib agar zona waktu benar.
-    gtk::glib::DateTime::from_unix_local(t as i64)
-        .and_then(|d| d.format("%d-%m-%Y %H:%M"))
-        .map(|s| s.to_string())
+    // Tanggal lokal (zona waktu sistem).
+    chrono::DateTime::from_timestamp(t as i64, 0)
+        .map(|d| d.with_timezone(&chrono::Local).format("%d-%m-%Y %H:%M").to_string())
         .unwrap_or_default()
 }

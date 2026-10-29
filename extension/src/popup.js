@@ -51,24 +51,24 @@ async function main() {
     $("links").hidden = true;
   }
   $("options").onclick = () => api.runtime.openOptionsPage();
-  $("help").onclick = () => api.tabs.create({ url: api.runtime.getURL("options.html#tentang") });
+  $("help").onclick = () => api.tabs.create({ url: api.runtime.getURL("options.html#about") });
 
   ask({ type: "status" }).then(
     ({ connected }) => {
       $("dot").className = "dot " + (connected ? "on" : "off");
-      $("status").textContent = connected ? "Terhubung" : "Aplikasi tidak jalan";
+      $("status").textContent = connected ? "Connected" : "App not running";
     },
-    () => ($("status").textContent = "Tidak diketahui"),
+    () => ($("status").textContent = "Unknown"),
   );
 
   const box = $("media");
   if (!host) {
-    box.replaceChildren(empty("Tidak ada media di halaman ini."));
+    box.replaceChildren(empty("No media on this page."));
     return;
   }
   const { items } = await ask({ type: "media", tabId: tab.id });
   if (!items.length) {
-    box.replaceChildren(empty("Belum ada media terdeteksi. Putar videonya sebentar, atau klik kanan halaman → \"Unduh video halaman ini\"."));
+    box.replaceChildren(empty("No media found yet. Play the video for a moment, or right-click the page → \"Download this page's video\"."));
     return;
   }
   box.textContent = "";
@@ -76,7 +76,7 @@ async function main() {
     const row = document.createElement("div");
     row.className = "row";
     row.tabIndex = 0;
-    const name = it.page ? it.label : it.url.split("?")[0].split("/").pop() || it.label;
+    const name = it.page ? K.pageTitle(it) : it.url.split("?")[0].split("/").pop() || it.label;
     const sub = it.kind === "hls" ? streamSub(it) : [it.label, K.formatSize(it.size)].filter(Boolean).join(" · ");
     const grow = el("span", "grow");
     const title = el("div", "ellipsis");
@@ -96,10 +96,10 @@ async function main() {
       try {
         await ask({ type: "download", tabId: tab.id, item: it });
         state.className = "state done";
-        state.textContent = "Dikirim";
+        state.textContent = "Sent";
       } catch (e) {
         state.className = "state fail";
-        state.textContent = "Gagal";
+        state.textContent = "Failed";
         row.title = e.message;
       }
     };

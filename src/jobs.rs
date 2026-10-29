@@ -77,6 +77,9 @@ pub fn spawn(mut job: Job, tx: async_channel::Sender<Event>) -> Result<Slot, Str
                 let num = |i: usize| f.get(i).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0) as u64;
                 let total = if num(1) > 0 { num(1) } else { num(2) };
                 let _ = tx.send_blocking(Event::JobProgress { id: job.id.clone(), done: num(0), total, speed: num(3) });
+            } else if let Some(name) = line.strip_prefix("KDMNAME ") {
+                let name = Path::new(name).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let _ = tx.send_blocking(Event::JobName { id: job.id.clone(), name });
             } else if !line.is_empty() {
                 let p = PathBuf::from(line);
                 path = Some(if p.is_absolute() { p } else { job.dir.join(p) });
@@ -90,10 +93,10 @@ pub fn spawn(mut job: Job, tx: async_channel::Sender<Event>) -> Result<Slot, Str
             Some(Ok(s)) if s.success() => Ok(path.map(|p| p.to_string_lossy().into_owned())),
             Some(Ok(s)) => {
                 let tail = err_tail.lock().unwrap().join(" | ");
-                Err(if tail.is_empty() { format!("keluar dengan {s}") } else { tail })
+                Err(if tail.is_empty() { format!("exited with {s}") } else { tail })
             }
             Some(Err(e)) => Err(e.to_string()),
-            None => Err("dihentikan".into()),
+            None => Err("stopped".into()),
         };
         let _ = tx.send_blocking(Event::JobDone { id: job.id, result });
     });

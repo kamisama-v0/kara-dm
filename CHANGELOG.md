@@ -6,6 +6,55 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
+### Added
+- Right-click a download for Open, Show in folder, Pause/Resume, Copy link and Remove.
+- Windows: Kara DM shows an icon in the notification area while it runs; click it to open the window, right-click
+  it for Open, Settings and Quit. The menu follows the Windows light or dark theme.
+- Settings → General → "Use hardware acceleration" draws the window with the GPU (wgpu) instead of the software
+  renderer (tiny-skia). Off by default: the GPU path uses about 200 MB and the window is solid instead of
+  see-through; it takes effect after "Save and restart".
+- Windows: FFmpeg 8.1.3 (LGPL build) is bundled in `ffmpeg\`, so YouTube video and audio are merged into one file.
+
+### Changed
+- New interface built with iced instead of GTK 4 / libadwaita: a macOS-style title bar (close, minimise and zoom
+  buttons; drag the toolbar to move the window) over the system blur (Mica on Windows 11), a left navigation with
+  counts, one accent "Add download" button, two-line download rows (name, then size, speed and time left) with a
+  thin progress bar and quick actions on hover, Phosphor icons, a progress window with the segment bar, menus, and
+  settings in three tabs (Downloads, Browser, General).
+  Memory use on Windows dropped from about 125 MB (background) / 210 MB (window open) to about 3 MB / 9 MB, and the
+  Windows bundle no longer carries 65 MB of GTK libraries. No GTK or MSYS2 is needed to build.
+- The desktop app is in English (menus, settings, progress window, notifications, messages and categories).
+- Single-instance handling (a second launch opens the window, `--quit` stops the running app) works the same way on
+  Linux and Windows.
+- yt-dlp downloads (YouTube and other page videos) are named after the video's own title plus the resolution
+  actually downloaded, as a dash-separated slug: "niki - Tsunami" at 1080p becomes `niki-Tsunami-1080.webm`,
+  audio only `niki-Tsunami-audio.m4a`; the name shows in the list as soon as the format is chosen.
+- Audio only prefers `.m4a`, so it lands in the Music category and plays everywhere.
+- Browser extension 0.1.5: the whole interface (popup, video button menu, settings, "Download links" page,
+  right-click menu and notifications) is in English, and the video menu and popup show the video's title instead
+  of "This page's video".
+
+### Fixed
+- Windows: a large download split over several connections could sit silent for many minutes at the start (a 67 GB
+  file on a hard disk: about 15 minutes) while Windows filled the file with zeros up to the farthest connection.
+  Files are now created sparse, so only the parts already downloaded take disk space.
+- Google Drive downloads of large files ended "complete" as a 2 KB `download` page. The browser extension now
+  passes the exact Cookie header the browser sent for the download, and otherwise only that site's first-party
+  cookies; it used to mix in partitioned copies of Google's cookies from other sites, so Google saw a different
+  session and refused the one-time download token. If Drive still answers with its virus-scan warning, Kara DM
+  follows the page's form with the fresh token; other Drive pages (e.g. "Quota exceeded") now show as a failed
+  download with Google's message instead of a saved HTML file.
+- Browser extension: the media list no longer shows a site's sound effects (e.g. `success.mp3`, served without a
+  size), and media is labelled simply "Video" or "Audio" (audio used to show as "MP3 video").
+- Windows: YouTube videos above 360p were saved as two separate files (`.fNNN.mp4` video and `.fNNN.webm` audio)
+  because ffmpeg was missing.
+- Windows: clicking the Kara DM icon while it runs in the background opened the window behind other windows.
+- When port 10007 was still in use at start (e.g. Neat Download Manager), the browser extension never connected
+  and every download was left to the browser; Kara DM now retries every 5 seconds and takes the port over once
+  it is free.
+
 ## [0.3.1] - 2026-10-20
 
 ### Added
@@ -72,7 +121,8 @@ First public release.
   yt-dlp, DASH merge via ffmpeg, POST downloads via curl, progress window with segment bar, history and
   categories.
 
-[Unreleased]: https://github.com/kamisama-v0/kara-dm/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/kamisama-v0/kara-dm/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/kamisama-v0/kara-dm/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/kamisama-v0/kara-dm/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/kamisama-v0/kara-dm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kamisama-v0/kara-dm/releases/tag/v0.2.0
