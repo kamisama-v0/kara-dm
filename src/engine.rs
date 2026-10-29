@@ -161,7 +161,12 @@ fn move_to_final(path: &Path, dir: &Path) -> std::io::Result<PathBuf> {
 impl Engine {
     pub fn new() -> Result<Engine, String> {
         let paths = model::Paths::new().map_err(|e| e.to_string())?;
-        let settings = Settings::load(&paths.settings);
+        let mut settings = Settings::load(&paths.settings);
+        if !settings.autostart_asked && platform::in_flatpak() {
+            platform::request_flatpak_autostart();
+            settings.autostart_asked = true;
+            let _ = settings.save(&paths.settings);
+        }
         let _ = std::fs::create_dir_all(settings.dir());
         let mut items = model::load_history(&paths.history);
         for it in items.iter_mut() {

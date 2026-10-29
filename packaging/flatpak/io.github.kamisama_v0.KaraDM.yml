@@ -16,6 +16,7 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
+  - --talk-name=org.freedesktop.Notifications # pemberitahuan "unduhan selesai" (notify-rust)
   - --filesystem=xdg-download # folder unduhan bawaan; folder lain lewat portal pemilih folder
 
 modules:

@@ -46,6 +46,35 @@ pub fn in_flatpak() -> bool {
     Path::new("/.flatpak-info").exists()
 }
 
+/// Di Flatpak, minta izin jalan di latar + autostart saat login lewat portal Background (pengguna yang memutuskan
+/// di dialog sistem). Di luar Flatpak autostart diatur installer (systemd user / Startup Windows). Lewat `gdbus`
+/// dari runtime GNOME, tanpa menunggu jawabannya.
+pub fn request_flatpak_autostart() {
+    if !in_flatpak() {
+        return;
+    }
+    let opts = "{'reason': <'Catching browser downloads since sign-in'>, 'autostart': <true>, \
+                'commandline': <['kara-dm', '--service']>}";
+    let spawned = Command::new("gdbus")
+        .args([
+            "call",
+            "--session",
+            "--dest",
+            "org.freedesktop.portal.Desktop",
+            "--object-path",
+            "/org/freedesktop/portal/desktop",
+            "--method",
+            "org.freedesktop.portal.Background.RequestBackground",
+            "",
+            opts,
+        ])
+        .stdout(std::process::Stdio::null())
+        .spawn();
+    if let Err(e) = spawned {
+        eprintln!("kara-dm: portal Background: {e}");
+    }
+}
+
 /// Folder yang hanya bisa dibaca pemiliknya (0700 di Unix; di Windows profil pengguna sudah ber-ACL per user).
 pub fn create_private_dir(p: &Path) -> io::Result<()> {
     let mut b = fs::DirBuilder::new();
