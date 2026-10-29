@@ -47,10 +47,15 @@ impl Aria2 {
             fs::write(&o.session, "").map_err(|e| e.to_string())?;
         }
         let n = o.connections.clamp(1, 16);
+        // Windows: dengan "none", tulisan segmen yang jauh di dalam berkas membuat NTFS mengisi nol semua byte di
+        // depannya dulu (berkas 67 GB di HDD: ±15 menit aria2 diam). "trunc" di aria2 versi Windows menandai berkas
+        // sparse lalu menetapkan ukurannya, sehingga hanya bagian yang sudah terunduh yang memakan disk.
+        // Di Linux berkas tanpa alokasi sudah "berlubang" (sparse), jadi "none" tetap paling ringan.
+        let alloc = if cfg!(windows) { "trunc" } else { "none" };
         let conf_text = format!(
             "enable-rpc=true\nrpc-listen-all=false\nrpc-listen-port={port}\nrpc-secret={token}\n\
              dir={dir}\ncontinue=true\nsplit={n}\nmax-connection-per-server={n}\nmin-split-size=1M\n\
-             max-concurrent-downloads={mc}\nmax-overall-download-limit={lim}K\nfile-allocation=none\n\
+             max-concurrent-downloads={mc}\nmax-overall-download-limit={lim}K\nfile-allocation={alloc}\n\
              auto-file-renaming=true\ncontent-disposition-default-utf8=true\ninput-file={sess}\n\
              save-session={sess}\nsave-session-interval=10\nmax-tries=5\nretry-wait=3\n\
              user-agent={ua}\nlog={log}\nlog-level=warn\nconsole-log-level=error\nsummary-interval=0\n\
